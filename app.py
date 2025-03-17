@@ -26,9 +26,19 @@ def map():
             field = match.group(2)
             baustellen[index][field] = value
     baustellen = list(baustellen.values())
-    baustellen = [{"lat": "46.655027", "lon": "11.157470", "größe": 100}, {"lat": "46.231694", "lon": "11.172098", "größe": 100}]
-    AufbereitungsWerk = [46.463926, 11.337877]
-    print(baustellen)
+    coords = [
+        [45.103130, 11.644913],
+        [45.145850, 11.825148],
+        [45.201835, 11.598046],
+        [45.070134, 11.977711],
+    ]
+    baustellen = [
+        {"lat": coords[0][0], "lon": coords[0][1], "größe": 100},
+        {"lat": coords[1][0], "lon": coords[1][1], "größe": 100},
+        {"lat": coords[2][0], "lon": coords[2][1], "größe": 100},
+        {"lat": coords[3][0], "lon": coords[3][1], "größe": 100},
+    ]
+    AufbereitungsWerk = [45.142380, 11.783497]
     zoom = 12
 
     m = generateMap([lat, lon], zoom, baustellen, AufbereitungsWerk)
