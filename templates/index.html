@@ -1,22 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Map Generator</title>
+  <meta charset="UTF-8">
+  <title>Map Generator</title>
+  <style>
+    .baustelle, .aufbereitungswerk {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
-    <h1>Generate Your Map</h1>
-    <form action="/map" method="get">
+  <form action="/map" method="get" id="mapForm">
+    <h2>Baustellen</h2>
+    <div id="baustellenContainer">
+      <!-- Baustelle entries will be added here -->
+    </div>
+    <button type="button" id="addBaustelle">Add Baustelle</button>
+    
+    <h2>AufbereitungsWerk</h2>
+    <div class="aufbereitungswerk">
+      <div>
+        <label for="aufbereitungswerk_lat">Latitude:</label>
+        <input type="text" id="aufbereitungswerk_lat" name="AufbereitungsWerk[lat]">
+      </div>
+      <div>
+        <label for="aufbereitungswerk_lon">Longitude:</label>
+        <input type="text" id="aufbereitungswerk_lon" name="Aufbereitungswerk[lon]">
+      </div>
+    </div>
+    
+    <br>
+    <button type="submit">Generate Map</button>
+  </form>
+
+  <script>
+    // Adds a new Baustelle entry using the number of current entries for numbering.
+    function addBaustelle() {
+      const container = document.getElementById('baustellenContainer');
+      const index = container.children.length + 1;
+      const div = document.createElement('div');
+      div.className = 'baustelle';
+      div.innerHTML = `
+        <h3>Baustelle ${index}</h3>
         <div>
-            <label for="lat">Latitude:</label>
-            <input type="text" id="lat" name="lat" placeholder="46.492328">
+          <label for="baustelle_lat_${index}">Latitude:</label>
+          <input type="text" id="baustelle_lat_${index}" name="baustellen[${index}][lat]">
         </div>
         <div>
-            <label for="lon">Longitude:</label>
-            <input type="text" id="lon" name="lon" placeholder="11.266533">
+          <label for="baustelle_lon_${index}">Longitude:</label>
+          <input type="text" id="baustelle_lon_${index}" name="baustellen[${index}][lon]">
         </div>
-        <br>
-        <button type="submit">Generate Map</button>
-    </form>
+        <div>
+          <label for="baustelle_größe_${index}">Größe (in m^2):</label>
+          <input type="text" id="baustelle_größe_${index}" name="baustellen[${index}][größe]">
+        </div>
+        <button type="button" onclick="removeBaustelle(this)">Remove Baustelle</button>
+      `;
+      container.appendChild(div);
+    }
+
+    // Updates the numbering and corresponding input attributes for all Baustelle entries.
+    function updateBaustellen() {
+      const container = document.getElementById('baustellenContainer');
+      const baustellen = container.getElementsByClassName('baustelle');
+      for (let i = 0; i < baustellen.length; i++) {
+        let index = i + 1;
+        let element = baustellen[i];
+        // Update header
+        element.querySelector('h3').textContent = "Baustelle " + index;
+        // Update Latitude field
+        let latLabel = element.querySelector('label[for^="baustelle_lat_"]');
+        latLabel.setAttribute("for", "baustelle_lat_" + index);
+        let latInput = element.querySelector('input[id^="baustelle_lat_"]');
+        latInput.setAttribute("id", "baustelle_lat_" + index);
+        latInput.setAttribute("name", `baustellen[${index}][lat]`);
+        // Update Longitude field
+        let lonLabel = element.querySelector('label[for^="baustelle_lon_"]');
+        lonLabel.setAttribute("for", "baustelle_lon_" + index);
+        let lonInput = element.querySelector('input[id^="baustelle_lon_"]');
+        lonInput.setAttribute("id", "baustelle_lon_" + index);
+        lonInput.setAttribute("name", `baustellen[${index}][lon]`);
+        // Update Größe field
+        let größeLabel = element.querySelector('label[for^="baustelle_größe_"]');
+        größeLabel.setAttribute("for", "baustelle_größe_" + index);
+        let größeInput = element.querySelector('input[id^="baustelle_größe_"]');
+        größeInput.setAttribute("id", "baustelle_größe_" + index);
+        größeInput.setAttribute("name", `baustellen[${index}][größe]`);
+      }
+    }
+
+    // Removes a Baustelle entry and updates numbering.
+    function removeBaustelle(button) {
+      const div = button.parentNode;
+      div.parentNode.removeChild(div);
+      updateBaustellen();
+    }
+
+    document.getElementById('addBaustelle').addEventListener('click', addBaustelle);
+  </script>
 </body>
 </html>
