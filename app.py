@@ -1,13 +1,22 @@
-from flask import Flask
+from flask import Flask, render_template, request
 import folium
+from generateMap import generateMap
 
 app = Flask(__name__)
 
-# flask run --host=172.31.98.182
 
 @app.route("/")
 def home():
-    m = folium.Map(location=[46.492328, 11.266533], zoom_start=10)
+    return render_template("index.html")
+
+
+@app.route("/map")
+def map():
+    lat = request.args.get("lat", default=46.492328, type=float)
+    lon = request.args.get("lon", default=11.266533, type=float)
+    zoom = 12
+
+    m = generateMap([lat, lon], zoom)
     return m.get_root().render()
 
 
