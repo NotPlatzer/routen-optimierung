@@ -166,7 +166,7 @@ def machine_3(trucks_max):
         zeit1 = calculateWorkTime_3_1(l)
         zeit2 = calculateWorkTime_3_2(l)
         
-        print(f"LKW: {l} David: {zeit} Goliad: {round(zeit1, 2)} Jakob: {round(zeit2, 2)}")
+        print(f"LKW: {l} David: {zeit} Goliath: {round(zeit1, 2)} Jakob: {round(zeit2, 2)}")
         
         if lastValue == zeit:
             print(lastValue, l)
@@ -191,7 +191,7 @@ def machine_1(trucks_max):
         zeit1 = calculateWorkTime_1_1(l)
         zeit2 = calculateWorkTime_1_2(l)
         
-        print(f"LKW: {l+1} David: {zeit} Goliad: {round(zeit1, 2)} Jakob: {round(zeit2, 2)}")
+        print(f"LKW: {l+1} David: {zeit} Goliath: {round(zeit1, 2)} Jakob: {round(zeit2, 2)}")
         
         if lastValue == zeit:
             print(lastValue, l)
