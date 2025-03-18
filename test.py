@@ -1,69 +1,86 @@
 import matplotlib.pyplot as plt
 import math
-import baustellen_utils as ut
+#import baustellen_utils as ut
 
 lkw_x = []
 zeit_y = []
 
 
-g = 70  # kmh
-m = 200  # t
-n = 25  # t
-a = 140  # km zum Asphaltwerk
+M = 501  # t
+N = 25  # t
+G = 20  # kmh
+A = 140  # km zum Asphaltwerk
+AG = 10
 
 lastValue = 0
 
 l = 1
 
-anzahlFahrten = m / n
-
-charge_time = n / ut.AbbruchleistungTS
+anzahlFahrten = M / N
+load_time = N / AG
 
 # calculate the time for the trip
-asphalt_fahrt_zeit =  2 * (a / g)
+fahrt_zeit =  2 * (A / G)
 
 
-def calculateWorkTime(l, fahrt_zeit, load_time):
-    restMass = m
-    availableTrucks = l
+def calculateWorkTime2(l):
+    return anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (math.ceil(anzahlFahrten / l) - 1)
+
+
+
+def calulateWorkTime1(l):
+    if N >= M:
+        l = 1
+    if math.ceil(anzahlFahrten) < l:
+        return -1
+    if fahrt_zeit < load_time * (l - 1):
+        l = 2
+    print("l: " + str(l))
+    ges = anzahlFahrten * load_time + (math.ceil(anzahlFahrten / l) - 1) * (fahrt_zeit - ((l - 1) * load_time))
+    
+    return ges
+
+
+def calculateWorkTimeSim(l, verbose = False):
+    restMass = M
     total_time = 0
     
-    trucks = []
+    trucks_time_avalable = []
     for i in range(l):
-        trucks.append(0)
+        trucks_time_avalable.append(0)
     
     #while work is not done = restMass > 0
     while restMass > 0:
-        # every truck has to be loaded. only one truck can be loaded at a time
-        for i in enumerate(trucks):
-            # first truck is loaded
+        for i in range(l):
+            # truck is loaded
+            total_time = max(total_time, trucks_time_avalable[i])
+            load_volume = min(N, restMass)
+            restMass -= load_volume
             
-            print("Truck " + i + " loaded: ")
-            print("Restmass: " + str(restMass))
+            if (verbose):
+                print("Truck " + str(i) + " loads at " + str(round(total_time, 2)) + " - " + str(round(total_time + load_time * (load_volume / N), 2)))
+                print("Restmass: " + str(restMass))
+                
+            total_time += load_time * (load_volume / N)
+            available_time = total_time + fahrt_zeit
             
-            disabled = total_time + fahrt_zeit + load_time
+            if (verbose):
+                print("Truck is available again in: " + str(round(available_time, 2)))
             
-            print("Truck is available again in: " + disabled)
-            
-
-            total_time += load_time
-            restMass -= n
-            
-            # truck drives to the asphalt
-            total_time += fahrt_zeit
-            
-
+            trucks_time_avalable[i] = available_time
             
             if restMass <= 0:
                 break
-        availableTrucks = math.ceil(restTime / (fahrt_zeit + load_time))
         
-    return total_time
+    return round(total_time, 2)
 
 
 
 while l < 10:
-    zeit = calculateWorkTime(l, asphalt_fahrt_zeit, charge_time)
+    zeit = calculateWorkTimeSim(l)
+    zeit1 = calculateWorkTime2(l)
+    
+    print("LKW: " + str(l) + " Zeit: " + str(zeit) + " Zeit1: " + str(round(zeit1, 2)))
     
     if lastValue == zeit:
         print(lastValue, l)
@@ -75,9 +92,12 @@ while l < 10:
     l += 1
 
 
+print("-------------------")
+print("With 3 trucks: ")
+calculateWorkTimeSim(3, True)
+
 
 
 print(lkw_x)
 print(zeit_y)
 plt.plot(lkw_x, zeit_y)
-plt.savefig("test.png")

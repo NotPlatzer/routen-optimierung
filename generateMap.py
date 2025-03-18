@@ -2,7 +2,6 @@ import folium
 import requests
 import json
 
-
 def decode_polyline(polyline_str):
     index, lat, lng, coordinates = 0, 0, 0, []
     while index < len(polyline_str):
@@ -64,21 +63,59 @@ def generateMap(location: list, zoom: int, baustellen: list, AufbereitungsWerk: 
                     routes[start + ziel] = calcRoute([indexedBaustellen[start]["lon"], indexedBaustellen[start]["lat"]], [indexedBaustellen[ziel]["lon"], indexedBaustellen[ziel]["lat"]])
                     routes[ziel + start] = routes[start + ziel]
     m = folium.Map(location=location, zoom_start=zoom)
+
+    config = {}
+    config["map_settings"] = {"location": location, "zoom": zoom}
+    config["markers"] = []
+    config["routes"] = {}
+    config["distances"] = {}
+    config["polylines"] = []
+    config["baustellen"] = indexedBaustellen
+
     for char_label, baustelle in indexedBaustellen.items():
+        marker = {
+            "location": [baustelle["lat"], baustelle["lon"]],
+            "popup": f"{char_label}: {baustelle['größe']}",
+            "icon_color": "blue",
+            "type": "baustelle",
+            "label": char_label,
+        }
+        config["markers"].append(marker)
+        folium.Marker(
+            location=marker["location"],
+            popup=marker["popup"],
+            icon=folium.Icon(color="blue"),
+        ).add_to(m)
         folium.Marker(
             location=[baustelle["lat"], baustelle["lon"]],
             popup=f"{char_label}: {baustelle['größe']}",  # Include label in popup
             icon=folium.Icon(color="blue"),
         ).add_to(m)
+
+    marker_aw = {
+        "location": AufbereitungsWerk,
+        "popup": "Aufbereitungswerk",
+        "icon_color": "red",
+        "type": "AufbereitungsWerk",
+    }
+    config["markers"].append(marker_aw)
+
     folium.Marker(
         location=AufbereitungsWerk,
         popup="Aufbereitungswerk",
         icon=folium.Icon(color="red"),
     ).add_to(m)
     distances = {}
-    for i in routes.keys():
-        distances[i] = routes[i][0]
-        folium.PolyLine(routes[i][1], color="green").add_to(m)
+
+    for key in routes.keys():
+        distance = routes[key][0]
+        polyline = routes[key][1]
+        config["routes"][key] = {"distance": distance, "polyline": polyline}
+        config["distances"][key] = distance
+        folium.PolyLine(polyline, color="green").add_to(m)
+
     print(distances)
+    with open("map_config.json", "w") as file:
+        json.dump(config, file, indent=4)
+        
     return m
-    
