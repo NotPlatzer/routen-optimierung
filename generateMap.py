@@ -1,6 +1,7 @@
 import folium
 import requests
 import json
+import copy
 
 def decode_polyline(polyline_str):
     index, lat, lng, coordinates = 0, 0, 0, []
@@ -56,7 +57,9 @@ def generateMap(location: list, zoom: int, baustellen: list, AufbereitungsWerk: 
         indexedBaustellen[chr(ord('A') + i)] = baustelle
     for start in indexedBaustellen.keys():
         routes[start + "w"] = calcRoute([indexedBaustellen[start]["lon"], indexedBaustellen[start]["lat"]], AufbereitungsWerk[::-1])
-        routes["w" + start] = routes[start + "w"]
+        umgedreht = copy.deepcopy(routes[start + "w"])
+        umgedreht[1] = umgedreht[1][::-1]
+        routes["w" + start] = umgedreht
         for ziel in indexedBaustellen.keys():
             if start != ziel:
                 if routes.get(start + ziel) == None and routes.get(ziel + start) == None:
