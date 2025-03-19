@@ -1,9 +1,11 @@
 {'Phase': 2, 'Time': 0, 'Maschinen': [{'type': 'Fraese', 'endActivity': 30.0, 'fertig': False, 'mass': 475, 'location': 0}, {'type': 'Oberflaechen', 'endActivity': 0, 'fertig': False, 'mass': 499.65, 'location': 0}, {'type': 'Asphaltierer', 'endActivity': 0, 'volume': 0, 'fertig': False, 'mass': 500, 'location': 0}, {'type': 'Walze', 'endActivity': 0, 'fertig': False, 'mass': 500, 'location': 0}], 'Laster': [{'location': 'A', 'load': 25, 'loadType': 'Schutt', 'activity': 'Fraese', 'startActivity': 0, 'endActivity': 30.0, 'goal': None}]}
 
 ----------------------------------------
+Phase
 {'Phase': 3, 'Time': 48455, 'Maschinen': [{'type': 'Fraese', 'endActivity': 0, 'fertig': False, 'mass': 0, 'location': 0}, {'type': 'Oberflaechen', 'endActivity': 0, 'fertig': True, 'mass': 0, 'location': 0}, {'type': 'Asphaltierer', 'endActivity': 0, 'volume': 0, 'fertig': False, 'mass': 500, 'location': 0}, {'type': 'Walze', 'endActivity': 0, 'fertig': False, 'mass': 500, 'location': 0}], 'Laster': [{'location': 'Aw', 'load': 25, 'loadType': 'Schutt', 'activity': 'Drive', 'startActivity': 48385, 'endActivity': 49640.2, 'goal': 'A'}]}
 
 ----------------------------------------
+Phase
 {'Phase': 4, 'Time': 51500, 'Maschinen': [{'type': 'Fraese', 'endActivity': 0, 'fertig': False, 'mass': 0, 'location': 0}, {'type': 'Oberflaechen', 'endActivity': 0, 'fertig': True, 'mass': 0, 'location': 0}, {'type': 'Asphaltierer', 'endActivity': 51525.0, 'volume': 0, 'fertig': False, 'mass': 475, 'location': 0}, {'type': 'Walze', 'endActivity': 0, 'fertig': False, 'mass': 500, 'location': 0}], 'Laster': [{'location': 'A', 'load': 0, 'loadType': None, 'activity': 'Asphaltierer', 'startActivity': 51500, 'endActivity': 51524.56666666667, 'goal': 'A'}]}
 
 ----------------------------------------

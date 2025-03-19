@@ -173,15 +173,18 @@ def generateLaster(anzahl, location):
 
 def compare_dicts(d1, d2):
     if d1["Laster"] != d2["Laster"]:
+        print("Laster")
         return False
     if d1["Phase"] != d2["Phase"]:
+        print("Phase")
         return False
     for i,maschine in enumerate(d1["Maschinen"]):
-        if maschine["type"] == "Fräse":
+        if maschine["type"] == "Fraese":
             if d1["Maschinen"][i] != d2["Maschinen"][i]:
                 return False
         if maschine["type"] == "Asphaltierer":
             if d1["Maschinen"][i] != d2["Maschinen"][i]:
+                print("Asphaltierer")
                 return False
     return True
 
