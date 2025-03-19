@@ -35,12 +35,12 @@ VERBOSE = True
 VERBOSE_CHANGES = False
 
 
-def calculate(l, mass):
+def calculate(l, mass, fZeit):
     print("Calculating...")
     print("Machine 1")
-    print(myfunctions.simWorkTime_1(l, mass, NUTZLAST, LOAD_TIME, FAHRT_ZEIT_EINE_RICHTUNG*2 / 60, ABLADEN_WERK_H, VERBOSE))
+    print(myfunctions.simWorkTime_1(l, mass, NUTZLAST, LOAD_TIME, fZeit*2 / 60, ABLADEN_WERK_H, VERBOSE))
     print("Machine 3")
-    print(myfunctions.simWorkTime_3(l, mass, NUTZLAST, VOLUMEN_TRICHTER, ASPHALTIERUNGS_LEISTUNG, VOLLADEN_WERK_H, FAHRT_ZEIT_EINE_RICHTUNG*2 / 60, VERBOSE))
+    print(myfunctions.simWorkTime_3(l, mass, NUTZLAST, VOLUMEN_TRICHTER, ASPHALTIERUNGS_LEISTUNG, VOLLADEN_WERK_H, fZeit*2 / 60, VERBOSE))
     
 
 
@@ -496,7 +496,8 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
 sys.stdout = open("output.txt", "w")
 
 fZeit = 1255.2
-ergebnis = simulate(1, fZeit)
+mass = 500
+ergebnis = simulate(1, mass, fZeit)
 
 
 #open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
@@ -508,4 +509,4 @@ ergebnis = simulate(1, fZeit)
 # 25 euro/m2
 
 
-calculate(1, 500)
+calculate(1, 500, fZeit)
