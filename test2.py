@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 M = 400  # t
 N = 25  # t
-G = 100  # kmh
+V = 100  # kmh
 A = 350  # km zum Asphaltwerk
 AG = 50  # t / h
 AS = 30  # t / h
@@ -27,16 +27,24 @@ trichter_work_time = TL / AS
 
 
 # calculate the time for the trip
-fahrt_zeit = 2 * (A / G)
+fahrt_zeit = 2 * (A / V)
+
+ABLADEN = 0.05
+VOLLADEN = 0.1
+
+
+def calculateFullTime(l):
+    ges = M/AG + math.ceil(M/(N*l)) * ((2 * A / V + ABLADEN + VOLLADEN + (N - TL) / AS) - (l-1) * N/AG) + TL/AS
+    return ges
 
 
 def calculateWorkTime_3_2(l):
-    if (math.ceil(M/N) < l) or (2 * A / G < (N / AS) * (l - 1)):
+    if (math.ceil(M/N) < l) or (2 * A / V < (N / AS) * (l - 1)):
         return -1
     return (anzahlFahrten) * trichter_load_time + (anzahlFahrten - 1) * trichter_work_time + (math.ceil(anzahlFahrten/l) - 1) * (fahrt_zeit - ((l - 1) * trichter_load_time + l * trichter_work_time))
 
 def calculateWorkTime_1_2(l):
-    if (math.ceil(M/N) < l) or (2 * A / G < (N / AG) * (l - 1)):
+    if (math.ceil(M/N) < l) or (2 * A / V < (N / AG) * (l - 1)):
         return -1
     return anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (
         math.ceil(anzahlFahrten / l) - 1
