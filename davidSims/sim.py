@@ -1,5 +1,10 @@
 import math
-import json
+
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+
+import myfunctions
 
 # Constants
 NUTZLAST = 25  # t
@@ -22,13 +27,23 @@ TRICHTER_WORK_TIME = VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG
 FAHRT_ZEIT_EINE_RICHTUNG = (DISTANZ / V_LKW) * 60
 
 
-NEU_ASPHALT_LADE_ZEIT_MIN = 30
+
 ABLADEN_WERK_H = 0.05
-VOLLADEN_WERK_H = NEU_ASPHALT_LADE_ZEIT_MIN / 60
+VOLLADEN_WERK_H = 0.5
+VOLLADEN_WERK_MIN = VOLLADEN_WERK_H * 60
 
 
-VERBOSE = False
+VERBOSE = True
 VERBOSE_CHANGES = False
+
+
+def calculate(l, mass):
+    print("Calculating...")
+    print("Machine 1")
+    print(myfunctions.simWorkTime_1(l, mass, NUTZLAST, LOAD_TIME, FAHRT_ZEIT_EINE_RICHTUNG*2 / 60, ABLADEN_WERK_H, VERBOSE))
+    print("Machine 3")
+    print(myfunctions.simWorkTime_3(l, mass, NUTZLAST, VOLUMEN_TRICHTER, ASPHALTIERUNGS_LEISTUNG, VOLLADEN_WERK_H, FAHRT_ZEIT_EINE_RICHTUNG*2 / 60, VERBOSE))
+    
 
 
 def vprint(*args, **kwargs):
@@ -152,6 +167,8 @@ def generateLaster(anzahl, location):
 
 # return (anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (math.ceil(anzahlFahrten / l) - 1)) * 60
 
+
+
 def calculateFullTime(l, mass):
     ges = mass/ABBRUCH_LEISTUNG + math.ceil(mass/(NUTZLAST*l)) * ((2 * DISTANZ / V_LKW + ABLADEN_WERK_H + VOLLADEN_WERK_H + (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG) - (l-1) * NUTZLAST/ABBRUCH_LEISTUNG) + VOLUMEN_TRICHTER/ASPHALTIERUNGS_LEISTUNG
     return ges
@@ -167,13 +184,13 @@ def get_snapshot(baustelle, lasterListe):
     return "\n".join(lines)
 
 
-def simulate(l):
+def simulate(l, mass):
     timeStep = 1  # minuten
     currentTime = 0
     saveDatei = {"schritte": []}
 
     lasterListe = generateLaster(l, "A")
-    baustelle = Baustelle("A", 500)
+    baustelle = Baustelle("A", mass)
     baustelle.addMaschine(Fraese(baustelle.mass))
     baustelle.addMaschine(Oberflaechen(baustelle.mass))
     baustelle.addMaschine(Asphaltierer(baustelle.mass))
@@ -183,9 +200,23 @@ def simulate(l):
     while baustelle.phase < 5:
         vprint(f"Time: {currentTime}")
         for laster in lasterListe:
+            
+            if laster.location == "w" + baustelle.name:
+                if currentTime >= laster.endActivity:
+                    if laster.loadType == "Teer":
+                        laster.activity = "Waiting"
+                        laster.startActivity = currentTime
+                        laster.endActivity = 0
+                        laster.location = laster.goal
+                    elif laster.load == 0:
+                        laster.activity = "Waiting"
+                        laster.startActivity = currentTime
+                        laster.endActivity = 0
+                        laster.location = laster.goal
+
+
             if laster.location == baustelle.name:
                 if currentTime >= laster.endActivity:
-
                     # random code
                     if laster.activity == "Fraese":
                         if baustelle.maschinen["Fraese"].endActivity > currentTime:
@@ -255,13 +286,14 @@ def simulate(l):
                             zuLadeneMasse = baustelle.maschinen["Fraese"].mass
 
                         baustelle.maschinen["Fraese"].mass -= zuLadeneMasse
-                        baustelle.maschinen["Fraese"].endActivity = True
+                        
                         laster.load = zuLadeneMasse
                         laster.loadType = "Schutt"
                         laster.startActivity = currentTime
                         laster.endActivity = (
                             currentTime + zuLadeneMasse / ABBRUCH_LEISTUNG * 60
                         )
+                        baustelle.maschinen["Fraese"].endActivity = currentTime + zuLadeneMasse / ABBRUCH_LEISTUNG * 60
 
                     # Wenn Laster noch Teer laden muss und Asphaltierer zu bedienen ist
                     # -> Lade Teer in Asphaltierer
@@ -281,8 +313,6 @@ def simulate(l):
                             zuBeladeneMasse = NUTZLAST
                         else:
                             zuBeladeneMasse = baustelle.maschinen["Asphaltierer"].mass
-
-                        vprint(zuBeladeneMasse)
 
                         if zuBeladeneMasse == 0:
                             continue
@@ -337,7 +367,7 @@ def simulate(l):
                     
                     # Wenn Laster leer ist und Asphalterierer Masse braucht
                     # -> Lade Teer auf
-                    if (
+                    elif (
                         baustelle.phase >= 3
                         and laster.load == 0
                         and baustelle.maschinen["Asphaltierer"].mass > 0
@@ -356,7 +386,7 @@ def simulate(l):
                         laster.load = min(need_teer, NUTZLAST)
                         laster.activity = "Laden"
                         laster.startActivity = currentTime
-                        laster.endActivity = currentTime + (NEU_ASPHALT_LADE_ZEIT_MIN * need_teer / NUTZLAST)
+                        laster.endActivity = currentTime + (VOLLADEN_WERK_MIN * need_teer / NUTZLAST)
                     
                     #wenn laster leer und baustelle brauch kuan teer und is isch nichtes mehr obzutrogen und wenn i eaz mit teer start kimm i zur baustelle vor phase dings un
                     # Wenn Laster beim Werk ist, Fraese noch arbeitet und noch nicht genug Laster zur verfügung dafür stehen
@@ -386,18 +416,7 @@ def simulate(l):
                         laster.endActivity = currentTime + FAHRT_ZEIT_EINE_RICHTUNG
                     
 
-            if laster.location == "w" + baustelle.name:
-                if currentTime >= laster.endActivity:
-                    if laster.loadType == "Teer":
-                        laster.activity = "Waiting"
-                        laster.startActivity = currentTime
-                        laster.endActivity = 0
-                        laster.location = laster.goal
-                    elif laster.load == 0:
-                        laster.activity = "Waiting"
-                        laster.startActivity = currentTime
-                        laster.endActivity = 0
-                        laster.location = laster.goal
+            
 
         if baustelle.maschinen["Oberflaechen"].mass > 0 and (
             baustelle.maschinen["Fraese"].mass
@@ -450,7 +469,7 @@ def simulate(l):
                 baustelle.phase = 5
                 vprint("Walzen fertig")
                 break
-        vprint("Phase: ", baustelle.phase)
+        vprint("Phase:", baustelle.phase)
         zeitAbschnitt = {"Zeit": currentTime, "laster": []}
         
         for maschine in baustelle.maschinen:
@@ -471,7 +490,7 @@ def simulate(l):
         currentTime += timeStep
         # time.sleep(0.005)
 
-    vprint("Phase: ", baustelle.phase)
+    vprint("Phase:", baustelle.phase)
     for maschine in baustelle.maschinen:
         vprint(baustelle.maschinen[maschine])
     vprint("Laster:")
@@ -480,14 +499,18 @@ def simulate(l):
     return saveDatei
 
 
-ergebnis = simulate(5)
+# print everything in output.txt
+sys.stdout = open("output.txt", "w")
 
-open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
+
+ergebnis = simulate(1, 500)
+
+#open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
 # sommmer: 15 bis 25 min
 # 40 -50
 # maybe fixe zohl lkws und wiaviele baustellen konn i mochen
 # 5m/min
 # dicke schicht
 # 25 euro/m2
-print(calculateFullTime(1, 500))
 
+calculate(1, 500)
