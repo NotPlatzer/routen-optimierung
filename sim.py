@@ -2,6 +2,8 @@ import math
 import copy
 import os
 import sys
+import json
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 try:
     import myfunctions
@@ -509,22 +511,24 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 vprint("Walzen fertig")
                 break
         vprint("Phase:", baustelle.phase)
-        zeitAbschnitt = {"Zeit": currentTime, "laster": []}
+
         
         for maschine in baustelle.maschinen:
             vprint(baustelle.maschinen[maschine])
-            zeitAbschnitt[maschine] = baustelle.maschinen[maschine].__dict__
         vprint("Laster:")
         for laster in lasterListe:
-            zeitAbschnitt["laster"].append(laster.__dict__)
             vprint(laster)
+        snapshot = get_snapshot(baustelle, lasterListe, currentTime)
+        if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
+            saveDatei["schritte"].append(snapshot)
+
         if VERBOSE_CHANGES:
             snapshot = get_snapshot(baustelle, lasterListe, currentTime)
             if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
                 printSnapshot(snapshot)
                 print()
                 print("-" * 40)  # separator for clarity
-                prev_snapshot = copy.deepcopy(snapshot)
+        prev_snapshot = copy.deepcopy(snapshot)
         saveDatei["schritte"].append(zeitAbschnitt)
         currentTime += timeStep
         # time.sleep(0.005)
