@@ -1,5 +1,5 @@
 import math
-
+import copy
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
@@ -7,7 +7,7 @@ try:
     import myfunctions
 except ImportError:
     print("Error importing myfunctions")
-    
+
 # Constants
 NUTZLAST = 25  # t
 V_LKW = 100  # kmh
@@ -24,8 +24,6 @@ WALZEN_PUFFER = 5
 
 TRICHTER_LOAD_TIME = (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG
 TRICHTER_WORK_TIME = VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG
-
-
 
 
 ABLADEN_WERK_H = 0.05
@@ -47,7 +45,6 @@ def calculate(l, mass, fZeit):
     except ValueError:
         print("Error: Invalid input")
         return
-    
 
 
 def vprint(*args, **kwargs):
@@ -171,19 +168,19 @@ def generateLaster(anzahl, location):
 
 # return (anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (math.ceil(anzahlFahrten / l) - 1)) * 60
 
+
 def compare_dicts(d1, d2):
+    val = True
     if d1["Laster"] != d2["Laster"]:
-        return False
+        val = False
     if d1["Phase"] != d2["Phase"]:
-        return False
-    for i,maschine in enumerate(d1["Maschinen"]):
-        if maschine["type"] == "Fräse":
+        val = False
+    for i, maschine in enumerate(d1["Maschinen"]):
+        # Check for specific machine types if needed
+        if maschine["type"] in ["Fräse", "Asphaltierer"]:
             if d1["Maschinen"][i] != d2["Maschinen"][i]:
-                return False
-        if maschine["type"] == "Asphaltierer":
-            if d1["Maschinen"][i] != d2["Maschinen"][i]:
-                return False
-    return True
+                val = False
+    return val
 
 
 def get_snapshot(baustelle, lasterListe, currentTime):
@@ -500,7 +497,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 print(snapshot)
                 print()
                 print("-" * 40)  # separator for clarity
-                prev_snapshot = snapshot.copy()
+                prev_snapshot = copy.deepcopy(snapshot)
         saveDatei["schritte"].append(zeitAbschnitt)
         currentTime += timeStep
         # time.sleep(0.005)
@@ -522,7 +519,7 @@ mass = 500
 ergebnis = simulate(1, mass, fZeit)
 
 
-#open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
+# open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
 # sommmer: 15 bis 25 min
 # 40 -50
 # maybe fixe zohl lkws und wiaviele baustellen konn i mochen
