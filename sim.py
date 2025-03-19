@@ -2,6 +2,7 @@ import math
 import copy
 import os
 import sys
+import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 try:
     import myfunctions
@@ -32,7 +33,7 @@ VOLLADEN_WERK_MIN = VOLLADEN_WERK_H * 60
 
 
 VERBOSE = False
-VERBOSE_CHANGES = True
+VERBOSE_CHANGES = False
 
 
 def calculate(l, mass, fZeit):
@@ -197,6 +198,7 @@ def get_snapshot(baustelle, lasterListe, currentTime):
     return data
 
 def simulate(l, mass, fahrt_zeit_eine_richtung):
+    print(l, mass, fahrt_zeit_eine_richtung)
     timeStep = 1  # minuten
     currentTime = 0
     saveDatei = {"schritte": []}
@@ -212,7 +214,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     while baustelle.phase < 5:
         vprint(f"Time: {currentTime}")
         for laster in lasterListe:
-            
+
             if laster.location == "w" + baustelle.name:
                 if currentTime >= laster.endActivity:
                     if laster.loadType == "Teer":
@@ -225,7 +227,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.startActivity = currentTime
                         laster.endActivity = 0
                         laster.location = laster.goal
-
 
             if laster.location == baustelle.name:
                 if currentTime >= laster.endActivity:
@@ -298,7 +299,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                             zuLadeneMasse = baustelle.maschinen["Fraese"].mass
 
                         baustelle.maschinen["Fraese"].mass -= zuLadeneMasse
-                        
+
                         laster.load = zuLadeneMasse
                         laster.loadType = "Schutt"
                         laster.startActivity = currentTime
@@ -375,8 +376,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.loadType = None
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + ABLADEN_WERK_H * 60
-                    
-                    
+
                     # Wenn Laster leer ist und Asphalterierer Masse braucht
                     # -> Lade Teer auf
                     elif (
@@ -399,8 +399,8 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.activity = "Laden"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + (VOLLADEN_WERK_MIN * need_teer / NUTZLAST)
-                    
-                    #wenn laster leer und baustelle brauch kuan teer und is isch nichtes mehr obzutrogen und wenn i eaz mit teer start kimm i zur baustelle vor phase dings un
+
+                    # wenn laster leer und baustelle brauch kuan teer und is isch nichtes mehr obzutrogen und wenn i eaz mit teer start kimm i zur baustelle vor phase dings un
                     # Wenn Laster beim Werk ist, Fraese noch arbeitet und noch nicht genug Laster zur verfügung dafür stehen
                     # -> Fahre zur Baustelle und nimm Schutt mit
                     elif (
@@ -419,16 +419,13 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
-                    
+
                     # Wenn Laster Teer geladen hat -> fahre zur Baustelle
                     elif laster.loadType == "Teer" and laster.load > 0:
                         laster.activity = "Drive"
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
-                    
-
-            
 
         if baustelle.maschinen["Oberflaechen"].mass > 0 and (
             baustelle.maschinen["Fraese"].mass
@@ -482,23 +479,20 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 vprint("Walzen fertig")
                 break
         vprint("Phase:", baustelle.phase)
-        zeitAbschnitt = {"Zeit": currentTime, "laster": []}
-        
+
         for maschine in baustelle.maschinen:
             vprint(baustelle.maschinen[maschine])
-            zeitAbschnitt[maschine] = baustelle.maschinen[maschine].__dict__
         vprint("Laster:")
         for laster in lasterListe:
-            zeitAbschnitt["laster"].append(laster.__dict__)
             vprint(laster)
+        snapshot = get_snapshot(baustelle, lasterListe, currentTime)
+        if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
+            saveDatei["schritte"].append(snapshot)
         if VERBOSE_CHANGES:
-            snapshot = get_snapshot(baustelle, lasterListe, currentTime)
-            if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
-                print(snapshot)
-                print()
-                print("-" * 40)  # separator for clarity
-                prev_snapshot = copy.deepcopy(snapshot)
-        saveDatei["schritte"].append(zeitAbschnitt)
+            print(snapshot)
+            print()
+            print("-" * 40)  # separator for clarity
+        prev_snapshot = copy.deepcopy(snapshot)
         currentTime += timeStep
         # time.sleep(0.005)
 
@@ -508,24 +502,18 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     vprint("Laster:")
     for i, laster in enumerate(lasterListe):
         vprint(laster)
-    return saveDatei
+    open("ergebnisSim.json", "w").write(json.dumps(saveDatei, indent=4))
+    return currentTime, saveDatei
 
 
 # print everything in output.txt
-sys.stdout = open("output.txt", "w")
+# sys.stdout = open("output.txt", "w")
 
-fZeit = 1255.2
-mass = 500
-ergebnis = simulate(1, mass, fZeit)
-
-
-# open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
-# sommmer: 15 bis 25 min
-# 40 -50
-# maybe fixe zohl lkws und wiaviele baustellen konn i mochen
-# 5m/min
-# dicke schicht
-# 25 euro/m2
+fZeit = 175
+mass = 200
+lkw = 3
+# ergebnis = simulate(lkw, mass, fZeit)
+# print(ergebnis)
 
 
-calculate(1, 500, fZeit)
+# calculate(lkw, mass, fZeit)
