@@ -529,7 +529,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 print()
                 print("-" * 40)  # separator for clarity
         prev_snapshot = copy.deepcopy(snapshot)
-        saveDatei["schritte"].append(zeitAbschnitt)
         currentTime += timeStep
         # time.sleep(0.005)
 
