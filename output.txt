@@ -1,8 +1,0 @@
-Calculating...
-Machine 1
-13.77
-Machine 3
-14.7
-{'A': {'lat': 45.10313, 'lon': 11.644913, 'größe': 100}}
-HALOOOOOO
-trucks_movements []
