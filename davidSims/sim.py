@@ -4,7 +4,6 @@ import json
 # Constants
 NUTZLAST = 25  # t
 V_LKW = 100  # kmh
-DISTANZ = 350  # km zum Asphaltwerk
 ABBRUCH_LEISTUNG = 50  # t / h
 OBERFLAECHEN_LEISTUNG = 21  # t / h
 ASPHALTIERUNGS_LEISTUNG = 30  # t / h
@@ -19,7 +18,6 @@ WALZEN_PUFFER = 5
 TRICHTER_LOAD_TIME = (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG
 TRICHTER_WORK_TIME = VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG
 
-FAHRT_ZEIT_EINE_RICHTUNG = (DISTANZ / V_LKW) * 60
 
 
 NEU_ASPHALT_LADE_ZEIT_MIN = 30
@@ -152,8 +150,8 @@ def generateLaster(anzahl, location):
 
 # return (anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (math.ceil(anzahlFahrten / l) - 1)) * 60
 
-def calculateFullTime(l, mass):
-    ges = mass/ABBRUCH_LEISTUNG + math.ceil(mass/(NUTZLAST*l)) * ((2 * DISTANZ / V_LKW + ABLADEN_WERK_H + VOLLADEN_WERK_H + (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG) - (l-1) * NUTZLAST/ABBRUCH_LEISTUNG) + VOLUMEN_TRICHTER/ASPHALTIERUNGS_LEISTUNG
+def calculateFullTime(l, mass, fahrt_zeit_eine_richtung):
+    ges = mass/ABBRUCH_LEISTUNG + math.ceil(mass/(NUTZLAST*l)) * ((2 * fahrt_zeit_eine_richtung / 60 + ABLADEN_WERK_H + VOLLADEN_WERK_H + (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG) - (l-1) * NUTZLAST/ABBRUCH_LEISTUNG) + VOLUMEN_TRICHTER/ASPHALTIERUNGS_LEISTUNG
     return ges
 
 def get_snapshot(baustelle, lasterListe):
@@ -167,7 +165,7 @@ def get_snapshot(baustelle, lasterListe):
     return "\n".join(lines)
 
 
-def simulate(l):
+def simulate(l, fahrt_zeit_eine_richtung):
     timeStep = 1  # minuten
     currentTime = 0
     saveDatei = {"schritte": []}
@@ -230,14 +228,14 @@ def simulate(l):
                         laster.activity = "Drive"
                         laster.location = baustelle.name + "w"
                         laster.startActivity = currentTime
-                        laster.endActivity = currentTime + FAHRT_ZEIT_EINE_RICHTUNG
+                        laster.endActivity = currentTime + fahrt_zeit_eine_richtung
 
                     # Wenn Laster noch Schutt geladen hat -> fahre zur Asphaltierer
                     if laster.loadType == "Schutt" and laster.load > 0:
                         laster.activity = "Drive"
                         laster.location = baustelle.name + "w"
                         laster.startActivity = currentTime
-                        laster.endActivity = currentTime + FAHRT_ZEIT_EINE_RICHTUNG
+                        laster.endActivity = currentTime + fahrt_zeit_eine_richtung
 
                     # Wenn Laster leer ist und Fraese noch zu bedienen ist -> Faesenarbeit
                     if (
@@ -376,14 +374,14 @@ def simulate(l):
                         laster.activity = "Drive"
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
-                        laster.endActivity = currentTime + FAHRT_ZEIT_EINE_RICHTUNG
+                        laster.endActivity = currentTime + fahrt_zeit_eine_richtung
                     
                     # Wenn Laster Teer geladen hat -> fahre zur Baustelle
                     elif laster.loadType == "Teer" and laster.load > 0:
                         laster.activity = "Drive"
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
-                        laster.endActivity = currentTime + FAHRT_ZEIT_EINE_RICHTUNG
+                        laster.endActivity = currentTime + fahrt_zeit_eine_richtung
                     
 
             if laster.location == "w" + baustelle.name:
@@ -479,8 +477,8 @@ def simulate(l):
         vprint(laster)
     return saveDatei
 
-
-ergebnis = simulate(5)
+fZeit = 1255.2
+ergebnis = simulate(1, fZeit)
 
 open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
 # sommmer: 15 bis 25 min
@@ -489,5 +487,5 @@ open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
 # 5m/min
 # dicke schicht
 # 25 euro/m2
-print(calculateFullTime(1, 500))
+print(calculateFullTime(1, 500, fZeit))
 

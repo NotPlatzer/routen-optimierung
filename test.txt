@@ -1,0 +1,10 @@
+def __init__(self, location):
+        self.location = location
+        self.load = 0
+        self.loadType = None
+        self.activity = "Waiting"
+        self.startActivity = 0
+        self.endActivity = 0
+        self.goal = None
+    def __str__(self):
+        return f"Location: {self.location}, Load: {self.load}, LoadType: {self.loadType}, Activity: {self.activity}, startActivity: {self.startActivity}, endActivity: {self.endActivity}"
