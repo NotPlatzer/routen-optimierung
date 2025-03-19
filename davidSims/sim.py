@@ -3,9 +3,11 @@ import math
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-
-import myfunctions
-
+try:
+    import myfunctions
+except ImportError:
+    print("Error importing myfunctions")
+    
 # Constants
 NUTZLAST = 25  # t
 V_LKW = 100  # kmh
@@ -36,11 +38,15 @@ VERBOSE_CHANGES = True
 
 
 def calculate(l, mass, fZeit):
-    print("Calculating...")
-    print("Machine 1")
-    print(myfunctions.simWorkTime_1(l, mass, NUTZLAST, LOAD_TIME, fZeit*2 / 60, ABLADEN_WERK_H, VERBOSE))
-    print("Machine 3")
-    print(myfunctions.simWorkTime_3(l, mass, NUTZLAST, VOLUMEN_TRICHTER, ASPHALTIERUNGS_LEISTUNG, VOLLADEN_WERK_H, fZeit*2 / 60, VERBOSE))
+    try:
+        print("Calculating...")
+        print("Machine 1")
+        print(myfunctions.simWorkTime_1(l, mass, NUTZLAST, LOAD_TIME, fZeit*2 / 60, ABLADEN_WERK_H, VERBOSE))
+        print("Machine 3")
+        print(myfunctions.simWorkTime_3(l, mass, NUTZLAST, VOLUMEN_TRICHTER, ASPHALTIERUNGS_LEISTUNG, VOLLADEN_WERK_H, fZeit*2 / 60, VERBOSE))
+    except ValueError:
+        print("Error: Invalid input")
+        return
     
 
 
@@ -165,17 +171,18 @@ def generateLaster(anzahl, location):
 
 # return (anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (math.ceil(anzahlFahrten / l) - 1)) * 60
 
-def deeply_compare_dicts(d1, d2, ignore_keys=[]):
-    d1 = {k: v for k, v in d1.items() if k not in ignore_keys}
-    d2 = {k: v for k, v in d2.items() if k not in ignore_keys}
-    if d1.keys() != d2.keys():
+def compare_dicts(d1, d2):
+    if d1["Laster"] != d2["Laster"]:
         return False
-    for key in d1.keys():
-        if isinstance(d1[key], dict) and isinstance(d2[key], dict):
-            if not deeply_compare_dicts(d1[key], d2[key], ignore_keys):
+    if d1["Phase"] != d2["Phase"]:
+        return False
+    for i,maschine in enumerate(d1["Maschinen"]):
+        if maschine["type"] == "Fräse":
+            if d1["Maschinen"][i] != d2["Maschinen"][i]:
                 return False
-        elif d1[key] != d2[key]:
-            return False
+        if maschine["type"] == "Asphaltierer":
+            if d1["Maschinen"][i] != d2["Maschinen"][i]:
+                return False
     return True
 
 
@@ -191,7 +198,6 @@ def get_snapshot(baustelle, lasterListe, currentTime):
     for laster in lasterListe:
         data["Laster"].append(laster.__dict__)
     return data
-
 
 def simulate(l, mass, fahrt_zeit_eine_richtung):
     timeStep = 1  # minuten
@@ -490,7 +496,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
             vprint(laster)
         if VERBOSE_CHANGES:
             snapshot = get_snapshot(baustelle, lasterListe, currentTime)
-            if prev_snapshot == ""  or deeply_compare_dicts(snapshot, prev_snapshot, ["Time", "mass", "Oberflaechen"]):  # only print if something changed
+            if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
                 print(snapshot)
                 print()
                 print("-" * 40)  # separator for clarity
