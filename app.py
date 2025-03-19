@@ -26,15 +26,9 @@ def map():
     baustellen = list(baustellen.values())
     coords = [
         [45.103130, 11.644913],
-        [45.145850, 11.825148],
-        [45.201835, 11.598046],
-        [45.070134, 11.977711],
     ]
     baustellen = [
         {"lat": coords[0][0], "lon": coords[0][1], "größe": 100},
-        {"lat": coords[1][0], "lon": coords[1][1], "größe": 100},
-        {"lat": coords[2][0], "lon": coords[2][1], "größe": 100},
-        {"lat": coords[3][0], "lon": coords[3][1], "größe": 100},
     ]
     AufbereitungsWerk = [45.142380, 11.783497]
     zoom = 12
@@ -89,125 +83,160 @@ def sim():
     from folium import MacroElement
     from jinja2 import Template
 
-    # Load configuration from file
-    with open("map_config.json", "r") as file:
-        config = json.load(file)
+    with open("ergebnisSim.json", "r") as f:
+        sim_data = json.load(f)
 
-    # Base map settings
-    location = config.get("map_settings", {}).get("location", [0, 0])
-    zoom = config.get("map_settings", {}).get("zoom", 13)
-    m = folium.Map(location=location, zoom_start=zoom)
+    # Load map configuration (which contains the polylines and possibly a location mapping)
+    with open("map_config.json", "r") as f:
+        map_config = json.load(f)
 
-    # Add static markers (if any)
-    for marker in config.get("markers", []):
-        icon_color = marker.get("icon_color", "blue")
-        folium.Marker(
-            location=marker.get("location"),
-            popup=marker.get("popup"),
-            icon=folium.Icon(color=icon_color),
-        ).add_to(m)
+    # Set up the base map using map_config settings.
+    base_location = map_config.get("map_settings", {}).get("location", [0, 0])
+    zoom = map_config.get("map_settings", {}).get("zoom", 13)
+    m = folium.Map(location=base_location, zoom_start=zoom)
 
-    # Draw static routes for visual reference
-    for key, route in config.get("routes", {}).items():
+    for key, route in map_config.get("routes", {}).items():
         polyline = route.get("polyline")
         if polyline:
-            folium.PolyLine(polyline, color="green").add_to(m)
+            folium.PolyLine(polyline, color="blue", weight=5, opacity=0.5).add_to(m)
 
-    # Function to compute the haversine distance between two [lat, lon] points.
+    # Assume that your map_config may also define a mapping of location labels to coordinates.
+    # For example: "locations": { "A": [lat, lon], "B": [lat, lon], ... }
+    locations_mapping = map_config.get("markers", {})
+
+    # --- Step 1: Process simulation steps ---
+    # Determine the number of trucks from the first simulation step.
+    if not sim_data.get("schritte"):
+        return m.get_root().render()
+    num_trucks = len(sim_data["schritte"][0].get("laster", []))
+    # For each truck, extract its location over time (using the "location" field).
+    trucks_movements = []
+    for truck_index in range(num_trucks):
+        truck_locations = []
+        for step in sim_data["schritte"]:
+            truck = step.get("laster", [])[truck_index]
+            loc_label = truck.get("location")
+            # Only add if it changes (to avoid duplicates)
+            if not truck_locations or truck_locations[-1] != loc_label:
+                truck_locations.append(loc_label)
+        trucks_movements.append(truck_locations)
+    print("trucks_movements", trucks_movements)
+    # --- Step 2: Build routes and durations per truck ---
+    # Helper: Haversine distance (meters) between two [lat, lon] points.
     def haversine(coord1, coord2):
-        R = 6371000  # Earth radius in meters
+        R = 6371000  # Earth's radius in meters
         lat1, lon1 = coord1
         lat2, lon2 = coord2
         phi1 = math.radians(lat1)
         phi2 = math.radians(lat2)
         delta_phi = math.radians(lat2 - lat1)
         delta_lambda = math.radians(lon2 - lon1)
-        a = (
-            math.sin(delta_phi / 2) ** 2
-            + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
-        )
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        a = math.sin(delta_phi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(delta_lambda/2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
         return R * c
 
-    # Prepare animated routes data
-    # For each route, compute durations for each segment proportionally.
-    routes_data = []
-    for key, route in config.get("routes", {}).items():
-        polyline = route.get("polyline", [])
-        if not polyline or len(polyline) < 2:
-            continue
+    # For each truck, convert its sequence of location labels to a combined polyline and durations.
+    truck_routes = []
+    for truck_seq in trucks_movements:
+        combined_polyline = []
+        combined_durations = []
+        # Process each movement transition.
+        for i in range(len(truck_seq) - 1):
+            start_loc = truck_seq[i]
+            end_loc = truck_seq[i+1]
+            # We assume that the corresponding route key is the concatenation of start and end,
+            # for example "AB" for movement from A to B.
+            route_key = f"{start_loc}{end_loc}"
+            route_data = map_config.get("routes", {}).get(route_key)
+            if not route_data:
+                # Optionally try the reverse key.
+                route_key = f"{end_loc}{start_loc}"
+                route_data = map_config.get("routes", {}).get(route_key)
+            if not route_data:
+                # If no route is found, try to use direct coordinates from the locations mapping.
+                start_coord = locations_mapping.get(start_loc)
+                end_coord = locations_mapping.get(end_loc)
+                if start_coord and end_coord:
+                    segment_polyline = [start_coord, end_coord]
+                    # Use a default duration of 3600 seconds (1 hour) if not provided.
+                    real_duration = 3600  
+                else:
+                    continue
+            else:
+                segment_polyline = route_data.get("polyline", [])
+                # Get the real duration (in seconds) for this segment; default to 3600 if missing.
+                real_duration = route_data.get("distance", {}).get("duration", 3600)
+            # Compute the animation time for this segment.
+            # With 1 sec animation = 1 real hour, we have:
+            anim_time_ms = (real_duration / 3600.0) * 1000
 
-        # Get the real trip duration (in seconds) if provided.
-        route_info = route.get("distance", {})
-        real_duration = route_info.get("duration")
-        if real_duration is not None:
-            # Convert real duration (in seconds) to animation time (in seconds)
-            # where 1 sec animation = 1 real hour.
-            eineSekistStunden = 1/12
-            total_anim_time_sec = real_duration / (eineSekistStunden*3600.0)
-        else:
-            # Fallback: assign 1 second per segment if no duration is provided.
-            total_anim_time_sec = len(polyline) - 1
+            # Break the segment's polyline into its smaller segments and compute proportional durations.
+            segment_distances = []
+            total_distance = 0
+            for j in range(len(segment_polyline) - 1):
+                d = haversine(segment_polyline[j], segment_polyline[j+1])
+                segment_distances.append(d)
+                total_distance += d
+            if total_distance == 0 or len(segment_polyline) < 2:
+                durations = [anim_time_ms]
+            else:
+                durations = [(d / total_distance) * anim_time_ms for d in segment_distances]
 
-        # Total animation time in milliseconds for the plugin.
-        total_anim_time_ms = total_anim_time_sec * 1000
+            # Append the polyline to the combined route.
+            # Avoid duplicating points where segments meet.
+            if combined_polyline and segment_polyline:
+                if combined_polyline[-1] == segment_polyline[0]:
+                    combined_polyline.extend(segment_polyline[1:])
+                else:
+                    combined_polyline.extend(segment_polyline)
+            else:
+                combined_polyline.extend(segment_polyline)
+            # Append the durations.
+            combined_durations.extend(durations)
+        # Only add if we have a valid route.
+        if combined_polyline and combined_durations:
+            truck_routes.append({
+                "route": combined_polyline,
+                "durations": combined_durations
+            })
 
-        # Compute distances between consecutive points.
-        segment_distances = []
-        total_distance = 0
-        for i in range(len(polyline) - 1):
-            d = haversine(polyline[i], polyline[i + 1])
-            segment_distances.append(d)
-            total_distance += d
-
-        # If total_distance is 0, fallback to equal segment durations.
-        if total_distance == 0:
-            durations = [total_anim_time_ms / (len(polyline) - 1)] * (len(polyline) - 1)
-        else:
-            durations = [
-                (d / total_distance) * total_anim_time_ms for d in segment_distances
-            ]
-
-        routes_data.append({"route": polyline, "durations": durations})
-
-    # If there are any animated routes, add them using a custom MacroElement.
-    if routes_data:
-
-        class MultiMovingMarkers(MacroElement):
-            _template = Template(
-                """
+    # --- Step 3: Inject JavaScript to animate all truck markers ---
+    if truck_routes:
+        class MultiTruckMovingMarkers(MacroElement):
+            _template = Template(u"""
                 {% macro script(this, kwargs) %}
-                function addMovingMarkers() {
-                    var routesData = {{ this.routes_data }};
-                    routesData.forEach(function(item, index) {
-                        var marker = L.Marker.movingMarker(item.route, item.durations, {autostart: true});
+                function addTruckMovingMarkers() {
+                    var truckRoutes = {{ this.truck_routes }};
+                    truckRoutes.forEach(function(truck, idx) {
+                        // Create a moving marker for each truck.
+                        // You can customize options (e.g. different icons) per truck if desired.
+                        var marker = L.Marker.movingMarker(truck.route, truck.durations, {autostart: true});
                         marker.addTo({{ this._parent.get_name() }});
                     });
                 }
-                // Load the MovingMarker plugin if it hasn't been loaded yet.
+                // Ensure the MovingMarker plugin is loaded.
                 if (typeof L.Marker.movingMarker === 'undefined') {
                     var script = document.createElement('script');
                     script.type = 'text/javascript';
                     script.src = 'https://rawcdn.githack.com/ewoken/Leaflet.MovingMarker/master/MovingMarker.js';
                     script.onload = function() {
-                        addMovingMarkers();
+                        addTruckMovingMarkers();
                     };
                     document.getElementsByTagName('head')[0].appendChild(script);
                 } else {
-                    addMovingMarkers();
+                    addTruckMovingMarkers();
                 }
                 {% endmacro %}
-            """
-            )
+            """)
+            def __init__(self, truck_routes):
+                super(MultiTruckMovingMarkers, self).__init__()
+                self._name = 'MultiTruckMovingMarkers'
+                self.truck_routes = truck_routes
 
-            def __init__(self, routes_data):
-                super(MultiMovingMarkers, self).__init__()
-                self._name = "MultiMovingMarkers"
-                self.routes_data = routes_data
-
-        m.add_child(MultiMovingMarkers(routes_data=routes_data))
+        m.add_child(MultiTruckMovingMarkers(truck_routes=truck_routes))
 
     return m.get_root().render()
+
 
 
 if __name__ == "__main__":
