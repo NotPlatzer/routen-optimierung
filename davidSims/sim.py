@@ -31,16 +31,16 @@ VOLLADEN_WERK_H = 0.5
 VOLLADEN_WERK_MIN = VOLLADEN_WERK_H * 60
 
 
-VERBOSE = True
-VERBOSE_CHANGES = False
+VERBOSE = False
+VERBOSE_CHANGES = True
 
 
-def calculate(l, mass):
+def calculate(l, mass, fZeit):
     print("Calculating...")
     print("Machine 1")
-    print(myfunctions.simWorkTime_1(l, mass, NUTZLAST, LOAD_TIME, FAHRT_ZEIT_EINE_RICHTUNG*2 / 60, ABLADEN_WERK_H, VERBOSE))
+    print(myfunctions.simWorkTime_1(l, mass, NUTZLAST, LOAD_TIME, fZeit*2 / 60, ABLADEN_WERK_H, VERBOSE))
     print("Machine 3")
-    print(myfunctions.simWorkTime_3(l, mass, NUTZLAST, VOLUMEN_TRICHTER, ASPHALTIERUNGS_LEISTUNG, VOLLADEN_WERK_H, FAHRT_ZEIT_EINE_RICHTUNG*2 / 60, VERBOSE))
+    print(myfunctions.simWorkTime_3(l, mass, NUTZLAST, VOLUMEN_TRICHTER, ASPHALTIERUNGS_LEISTUNG, VOLLADEN_WERK_H, fZeit*2 / 60, VERBOSE))
     
 
 
@@ -165,16 +165,32 @@ def generateLaster(anzahl, location):
 
 # return (anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (math.ceil(anzahlFahrten / l) - 1)) * 60
 
+def deeply_compare_dicts(d1, d2, ignore_keys=[]):
+    d1 = {k: v for k, v in d1.items() if k not in ignore_keys}
+    d2 = {k: v for k, v in d2.items() if k not in ignore_keys}
+    if d1.keys() != d2.keys():
+        return False
+    for key in d1.keys():
+        if isinstance(d1[key], dict) and isinstance(d2[key], dict):
+            if not deeply_compare_dicts(d1[key], d2[key], ignore_keys):
+                return False
+        elif d1[key] != d2[key]:
+            return False
+    return True
 
-def get_snapshot(baustelle, lasterListe):
-    lines = []
-    lines.append(f"Phase: {baustelle.phase}")
+
+def get_snapshot(baustelle, lasterListe, currentTime):
+    data = {}
+    data["Phase"] = baustelle.phase
+    data["Time"] = currentTime
+    data["Maschinen"] = []
+    data["Laster"] = []
     for machine in baustelle.maschinen.values():
-        lines.append(str(machine))
-    lines.append("Laster:")
+        data["Maschinen"].append(machine.__dict__)
+    
     for laster in lasterListe:
-        lines.append(str(laster))
-    return "\n".join(lines)
+        data["Laster"].append(laster.__dict__)
+    return data
 
 
 def simulate(l, mass, fahrt_zeit_eine_richtung):
@@ -473,12 +489,12 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
             zeitAbschnitt["laster"].append(laster.__dict__)
             vprint(laster)
         if VERBOSE_CHANGES:
-            snapshot = get_snapshot(baustelle, lasterListe)
-            if snapshot != prev_snapshot:
+            snapshot = get_snapshot(baustelle, lasterListe, currentTime)
+            if prev_snapshot == ""  or deeply_compare_dicts(snapshot, prev_snapshot, ["Time", "mass", "Oberflaechen"]):  # only print if something changed
                 print(snapshot)
                 print()
                 print("-" * 40)  # separator for clarity
-                prev_snapshot = snapshot
+                prev_snapshot = snapshot.copy()
         saveDatei["schritte"].append(zeitAbschnitt)
         currentTime += timeStep
         # time.sleep(0.005)
@@ -496,7 +512,8 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
 sys.stdout = open("output.txt", "w")
 
 fZeit = 1255.2
-ergebnis = simulate(1, fZeit)
+mass = 500
+ergebnis = simulate(1, mass, fZeit)
 
 
 #open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
@@ -508,4 +525,4 @@ ergebnis = simulate(1, fZeit)
 # 25 euro/m2
 
 
-calculate(1, 500)
+calculate(1, 500, fZeit)
