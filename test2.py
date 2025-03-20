@@ -148,20 +148,30 @@ oberflaechen_zeit = M / OberflächenvorbereitungTS
 asphaltierungs_zeit = M / AsphaltverfestigungTS
 
 x = 1
-while x < 20:
+lastValue1 = 0
+lastValue2 = 0
+while x < 16:
     values_1.append(round(simWorkTime_1(x), 2))
     values_2.append(oberflaechen_zeit)
     values_3.append(round(simWorkTime_3(x), 2))
     values_4.append(asphaltierungs_zeit)
     
+    if lastValue1 == values_1[-1] and lastValue2 == values_3[-1]:
+        break
+    
     xs.append(x)
     x+=1
 
 # plot the graph
-plt.plot(xs, values_1, label="1")
+print("xs: ", xs)
+print("values_1: ", values_1)
+print("values_3: ", values_3)
+plt.plot(xs, values_1, label="fraesen_zeit")
 plt.plot(xs, values_2, label="oberflaechen_zeit")
-plt.plot(xs, values_3, label="3")
-plt.plot(xs, values_4, label="asphaltierungs_zeit")
+plt.plot(xs, values_3, label="asphaltierungs_zeit")
+plt.plot(xs, values_4, label="walzen_zeit")
+plt.xlabel("Anzahl der LKW")
+plt.ylabel("Zeit")
 plt.legend()
 plt.show()
 
