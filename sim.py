@@ -39,7 +39,7 @@ VOLLADEN_WERK_MIN = 15
 
 
 VERBOSE = False
-VERBOSE_CHANGES = False
+VERBOSE_CHANGES = True
 
 
 def calculate(l, mass, fZeit):
@@ -420,7 +420,7 @@ def simulate(l,inGoingBaustellen, distances):
                         machine.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung("z", baustellen[b].name, distances)
                         break
                 else:
-                    if machine.location != "z":
+                    if "z" not in machine.location:
                         machine.activity = "Drive"
                         machine.startActivity = currentTime
                         machine.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(machine.location, "z", distances)
@@ -466,7 +466,7 @@ def simulate(l,inGoingBaustellen, distances):
                         lasterPositions[lasterIndex].append([laster.location, laster.startActivity, laster.endActivity])
                         break
                 else:
-                    if laster.location != "z":
+                    if "z" not in laster.location:
                         laster.activity = "Drive"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(laster.location, "z", distances)
@@ -496,7 +496,7 @@ def simulate(l,inGoingBaustellen, distances):
                         laster.location = laster.goal
                         lasterPositions[lasterIndex].append([laster.location, currentTime, None])
                         
-            elif laster.location == "wz" and currentTime >= laster.endActivity:
+            if laster.location == "wz" and currentTime >= laster.endActivity:
                 laster.activity = "Waiting"
                 laster.startActivity = currentTime
                 laster.endActivity = 0
@@ -853,11 +853,20 @@ def simulate(l,inGoingBaustellen, distances):
 
 
 # print everything in output.txt
-# sys.stdout = open("output.txt", "w")
+sys.stdout = open("output.txt", "w")
 
 fZeit = 175 / V_LKW * 60
 mass = 200
-# ergebnis = simulate(3, mass, fZeit)
+
+
+
+with open("map_config.json", "r") as f:
+        map_config = json.load(f)
+
+baustellen = map_config["baustellen"]
+
+# Run simulation (simErgebnis is a list of trucks, each a list of events [state_code, start, end])
+simErgebnis = simulate(3, baustellen, map_config["distances"])
 
 # print(ergebnis)
 
