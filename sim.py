@@ -39,7 +39,7 @@ VOLLADEN_WERK_MIN = 15
 
 
 VERBOSE = False
-VERBOSE_CHANGES = True
+VERBOSE_CHANGES = False
 
 
 def calculate(l, mass, fZeit):
@@ -841,17 +841,27 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     
     snapshot = get_snapshot(baustellen, maschinen, lasterListe, currentTime)
     printSnapshot(snapshot)
-    return lasterPositions
+    newPositions = []
+    for laster in lasterPositions:
+        l = []
+        for i,pos in enumerate(laster):
+            if pos[2] == None and i < len(laster) - 1:
+                pos[2] = laster[i+1][1]
+            if pos[2] == None:
+                pos[2] = 1000000000000
+            l.append([pos[0], pos[2]-pos[1]])
+        newPositions.append(l)
+    return newPositions
 
 
 # print everything in output.txt
-sys.stdout = open("output.txt", "w")
+# sys.stdout = open("output.txt", "w")
 
 fZeit = 175 / V_LKW * 60
 mass = 200
-ergebnis = simulate(3, mass, fZeit)
+# ergebnis = simulate(3, mass, fZeit)
 
-print(ergebnis)
+# print(ergebnis)
 
 
 # open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
