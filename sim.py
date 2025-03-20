@@ -23,6 +23,12 @@ OBERFLAECHEN_PUFFER = 10
 WALZEN_LEISTUNG = 40  # t / h
 WALZEN_PUFFER = 5
 
+MAX_TIME = 10000  # min
+
+TRUCKS_MAX = 10
+
+PHASE_3_START_PUFFER_MIN = 5
+
 
 TRICHTER_LOAD_TIME = (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG
 TRICHTER_WORK_TIME = VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG
@@ -63,49 +69,53 @@ class Laster:
         self.endActivity = 0
         self.goal = None
     def __str__(self):
-        return f"Location: {self.location}, Load: {self.load}, LoadType: {self.loadType}, Activity: {self.activity}, startActivity: {self.startActivity}, endActivity: {self.endActivity}"
+        return f"Location: {self.location}, Load: {self.load}, LoadType: {self.loadType}, Activity: {self.activity}, startActivity: {self.startActivity}, endActivity: {self.endActivity}, goal: {self.goal}"
 
 
 class Baustelle:
     def __init__(self, name, mass):
         self.name = name
         self.mass = mass
-        self.maschinen = {}
-        self.anzahlFahrten = mass / NUTZLAST
+        self.bestLasterAnzahl = getBestLasterAnzahl(name, mass)
+        self.maschinen = {
+            "Fraese": None,
+            "Oberflaechen": None,
+            "Asphaltierer": None,
+            "Walze": None
+        }
         self.phase = (
             1  # 1: Fraese, 2: asphaltieren und fraesen, 3 : asphalieren, 4 fertgig
         )
 
-    def addMaschine(self, maschine):
-        self.maschinen[maschine.type] = maschine
-        vprint(f"Maschine {maschine.type} wurde hinzugefügt.")
-
     def __str__(self):
-        maschinen_str = "\n".join(str(m) for m in self.maschinen)
-        return f"Baustelle: {self.name}\nMaschinen:\n{maschinen_str if maschinen_str else 'Keine Maschinen vorhanden'}"
+        return f"Baustelle: {self.name}"
 
 
 class Maschine:
-    def __init__(self, mass):
+    def __init__(self):
+        self.startActivity = 0
         self.endActivity = 0
-        self.location = 0
-        self.fertig = False
-        self.mass = mass
+        self.mass = 0
+        self.location = "z"
+        self.goal = None
+        self.activity = "Waiting"
 
     def __str__(self):
         return (
             f"Maschine(Type: {self.type}, Mass: {self.mass}t, "
-            f"EndActivity: {self.endActivity}, Location: {self.location}), Fertig: {self.fertig}, Mass: {self.mass}"
+            f"EndActivity: {self.endActivity}, Location: {self.location}), Mass: {self.mass}"
         )
 
 
 class Fraese(Maschine):
-    def __init__(self, mass):
+    def __init__(self):
         self.type = "Fraese"
+        self.startActivity = 0
         self.endActivity = 0
-        self.fertig = False
-        self.mass = mass
-        self.location = 0
+        self.mass = 0
+        self.location = "z"
+        self.goal = None
+        self.activity = "Waiting"
 
     def __str__(self):
         return f"Maschine(Type: {self.type}, EndActivity: {self.endActivity}, Location: {self.location}), Mass: {self.mass}"
@@ -113,43 +123,43 @@ class Fraese(Maschine):
 
 class Oberflaechen(Maschine):
 
-    def __init__(self, mass):
+    def __init__(self):
         self.type = "Oberflaechen"
+        self.startActivity = 0
         self.endActivity = 0
-        self.fertig = False
-        self.mass = mass
-        self.location = 0
+        self.mass = 0
+        self.location = "z"
+        self.goal = None
+        self.activity = "Waiting"
 
     def __str__(self):
-        return (
-            f"Maschine(Type: {self.type}, "
-            f"EndActivity: {self.endActivity}, Location: {self.location}), Mass: {self.mass}"
-        )
+        return f"Maschine(Type: {self.type}, EndActivity: {self.endActivity}, Location: {self.location}), Mass: {self.mass}"
 
 
 class Asphaltierer(Maschine):
-    def __init__(self, mass):
+    def __init__(self):
         self.type = "Asphaltierer"
+        self.startActivity = 0
         self.endActivity = 0
-        self.volume = 0
-        self.fertig = False
-        self.mass = mass
-        self.location = 0
+        self.mass = 0
+        self.location = "z"
+        self.goal = None
+        self.activity = "Waiting"
 
     def __str__(self):
-        return (
-            f"Maschine(Type: {self.type}, Volume: {self.volume}t, "
-            f"EndActivity: {self.endActivity}, Location: {self.location}), Mass: {self.mass}"
-        )
+        return f"Maschine(Type: {self.type}, EndActivity: {self.endActivity}, Location: {self.location}), Mass: {self.mass}"
+        
 
 
 class Walze(Maschine):
-    def __init__(self, mass):
+    def __init__(self):
         self.type = "Walze"
+        self.startActivity = 0
         self.endActivity = 0
-        self.fertig = False
-        self.mass = mass
-        self.location = 0
+        self.mass = 0
+        self.location = "z"
+        self.goal = None
+        self.activity = "Waiting"
 
     def __str__(self):
         return f"Maschine(Type: {self.type}, EndActivity: {self.endActivity}, Location: {self.location}), Mass: {self.mass}"
@@ -169,28 +179,45 @@ def generateLaster(anzahl, location):
 
 # return (anzahlFahrten * load_time + max(0, fahrt_zeit - (l - 1) * load_time) * (math.ceil(anzahlFahrten / l) - 1)) * 60
 
+def compare_baustellen(b1, b2):
+    val = True
+    for b in b1:
+        if b not in b2:
+            val = False
+            break
+        if b1[b]["Phase"] != b2[b]["Phase"]:
+            val = False
+        for maschine1, maschine2 in zip(b1[b]["Maschinen"], b2[b]["Maschinen"]):
+            if maschine1["type"] in ["Fräse", "Asphaltierer"]:
+                if maschine1 != maschine2:
+                    val = False
+    return val
 
 def compare_dicts(d1, d2):
     val = True
     if d1["Laster"] != d2["Laster"]:
         val = False
-    if d1["Phase"] != d2["Phase"]:
+    if compare_baustellen(d1["Baustellen"], d2["Baustellen"]) == False:
         val = False
-    for i, maschine in enumerate(d1["Maschinen"]):
-        # Check for specific machine types if needed
-        if maschine["type"] in ["Fräse", "Asphaltierer"]:
-            if d1["Maschinen"][i] != d2["Maschinen"][i]:
-                val = False
     return val
 
 
-def get_snapshot(baustelle, lasterListe, currentTime):
+def get_snapshot(baustellen, maschinenListe, lasterListe, currentTime):
     data = {}
-    data["Phase"] = baustelle.phase
     data["Time"] = currentTime
-    data["Maschinen"] = []
     data["Laster"] = []
-    for machine in baustelle.maschinen.values():
+    data["Baustellen"] = {}
+    data["Maschinen"] = []
+    
+    for b in baustellen:
+        data["Baustellen"][b] = {}
+        data["Baustellen"][b]["Phase"] = baustellen[b].phase
+        data["Baustellen"][b]["Maschinen"] = []
+        for machine in baustellen[b].maschinen.values():
+            if machine != None:
+                data["Baustellen"][b]["Maschinen"].append(machine.__dict__)
+    
+    for machine in maschinenListe:
         data["Maschinen"].append(machine.__dict__)
     
     for laster in lasterListe:
@@ -198,43 +225,215 @@ def get_snapshot(baustelle, lasterListe, currentTime):
     return data
 
 def printSnapshot(snapshot):
-    print("Phase:", snapshot["Phase"])
     print("Time:", snapshot["Time"])
-    print("Maschinen:")
-    for machine in snapshot["Maschinen"]:
-        print(machine)
-    print("Laster:")
+    for b in snapshot["Baustellen"].keys():
+        print("Baustelle:", b)
+        print("Phase:", snapshot["Baustellen"][b]["Phase"])
+        for machine in snapshot["Baustellen"][b]["Maschinen"]:
+            print(machine)
     for laster in snapshot["Laster"]:
         print(laster)
+    for machine in snapshot["Maschinen"]:
+        print(machine)
+    
 
-def calculateWorkTime_1(l, mass, fahrt_zeit_eine_richtung):
+
+def simWorkTime_3(l, mass, fahrt_zeit_eine_richtung, verbose = False):
+    restMass = mass
+    total_time = 0
+    
+    trucks_time_avalable = []
+    for i in range(l):
+        trucks_time_avalable.append(0)
+    
+    #while work is not done = restMass > 0
+    while restMass > 0:
+        for i in range(l):
+            # truck is loaded
+            total_time = max(total_time, trucks_time_avalable[i])
+            
+            dump_volume = min(NUTZLAST, restMass)
+            restMass -= dump_volume
+            
+            dump_anzahl = dump_volume / VOLUMEN_TRICHTER
+            full_dumps = math.floor(dump_anzahl)  # integer
+            rest_dump = (dump_anzahl - full_dumps) # 0 - 0.99
+            
+            rest_dump_time = (rest_dump * VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG
+            
+            waltz_time = rest_dump_time
+            
+            if full_dumps == 0:
+                full_dump_time = 0
+            else:
+                full_dump_time = (full_dumps - 1) * VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG
+                waltz_time += VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG
+            
+            truck_work_time = full_dump_time + rest_dump_time
+            available_time = total_time + truck_work_time + fahrt_zeit_eine_richtung * 2
+            trucks_time_avalable[i] = available_time
+            
+            if (verbose):
+                print(f"Truck {str(i+1)} dumps at {str(round(total_time, 2))} - {str(round(total_time + truck_work_time, 2))}")
+                print(f"\tFull dumps: {str(full_dumps)}")
+                print(f"\tRest dump: {str(rest_dump)}")
+                print(f"\tRest dump time: {str(round(rest_dump_time, 2))}")
+                print(f"\tFull dump time: {str(round(full_dump_time, 2))}")
+                print(f"\tWaltz time: {str(round(waltz_time, 2))}")
+                print(f"\tTruck is available again in: {str(round(available_time, 2))}")
+                print(f"\tRestmass: {str(restMass)} ")
+                print("\n")
+                
+            
+            if restMass <= 0:
+                total_time += rest_dump_time + full_dump_time
+                break
+            
+            total_time += waltz_time
+        
+    return round(total_time, 2)
+
+
+
+def calculateWorkTime_1_H(l, mass, fahrt_zeit_eine_richtung):
     anzahlFahrten = mass / NUTZLAST
     return anzahlFahrten * LOAD_TIME + max(0, fahrt_zeit_eine_richtung - (l - 1) * LOAD_TIME) * (math.ceil(anzahlFahrten / l) - 1)
 
-def timeOfPhase_3(l, mass, fahrt_zeit_eine_richtung):
+def timeOfPhase_3_H(l, mass, fahrt_zeit_eine_richtung):
     return (2 *(mass / (mass / NUTZLAST + (NUTZLAST / ABBRUCH_LEISTUNG + fahrt_zeit_eine_richtung * 2 + ABLADEN_WERK_MIN / 60 + VOLLADEN_WERK_MIN / 60 - (l - 1) * (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG - (VOLUMEN_TRICHTER * l) / ASPHALTIERUNGS_LEISTUNG) * math.floor(mass / (NUTZLAST * l)))) ) / 3
 
+
+def calculate_Fahrtzeit_eine_Richtung(a, b):
+    return 175 / V_LKW * 60
+
+def getBestLasterAnzahl(name, mass):
+    fahrt_zeit_eine_richtung = calculate_Fahrtzeit_eine_Richtung("z", name)
+    bestL1 = TRUCKS_MAX
+    l = 1
+    lastValue = -1
+    while l <= TRUCKS_MAX:
+        zeit = simWorkTime_3(l, mass, fahrt_zeit_eine_richtung)
+        
+        if lastValue == zeit:
+            bestL1 = l
+            break
+        
+        lastValue = zeit
+        l += 1
+
+    l = 1
+    lastValue = -1
+    bestL2 = TRUCKS_MAX
+    while l <= TRUCKS_MAX:
+        zeit = calculateWorkTime_1_H(l, mass, fahrt_zeit_eine_richtung)
+        
+        if lastValue == zeit:
+            bestL2 = l
+            break
+        
+        lastValue = zeit
+        l += 1
+    
+    return max(bestL1, bestL2)
+
 def simulate(l, mass, fahrt_zeit_eine_richtung):
+    baustellen = {
+        "A": Baustelle("A", 200),
+        "B": Baustelle("B", 300),
+        "C": Baustelle("C", 400),
+        "D": Baustelle("D", 500),
+        "E": Baustelle("E", 600),
+    }
+    
+    maschinen = [
+        Fraese(),
+        Oberflaechen(),
+        Asphaltierer(),
+        Walze(),
+    ]
+    
+    lasterListe = generateLaster(l, "z")
+    
     timeStep = 1  # minuten
     currentTime = 0
-    phase_1_time = calculateWorkTime_1(l, mass, fahrt_zeit_eine_richtung)
-    phase_3_start = phase_1_time / 3#timeOfPhase_3(l, mass, fahrt_zeit_eine_richtung) * 60 #
+    phase_1_finish = calculateWorkTime_1_H(l, mass, fahrt_zeit_eine_richtung) * 60 # fertig um 1000
+    phase_2_finish = OBERFLAECHEN_TROCKENDAUER + OBERFLAECHEN_PUFFER + (mass / OBERFLAECHEN_LEISTUNG) * 60 # fertig um 1000 + 20 min + 10 min
+    phase_3_work_time_min = simWorkTime_3(l, mass, fahrt_zeit_eine_richtung) * 60
+    phase_3_start = max(0,max(phase_1_finish, phase_2_finish) - phase_3_work_time_min + PHASE_3_START_PUFFER_MIN) # start um 1000 - simWorktime + PUFFER
+    #phase_3_start = phase_1_time / 3#timeOfPhase_3(l, mass, fahrt_zeit_eine_richtung) * 60 #
+    print("Phase 1 finish:", phase_1_finish)
+    print("Phase 2 finish:", phase_2_finish)
+    print("Phase 3 work:", phase_3_work_time_min)
+    
     print("Phase 3 start:", phase_3_start)
     saveDatei = {"schritte": []}
 
-    lasterListe = generateLaster(l, "A")
-    baustelle = Baustelle("A", mass)
-    baustelle.addMaschine(Fraese(baustelle.mass))
-    baustelle.addMaschine(Oberflaechen(baustelle.mass))
-    baustelle.addMaschine(Asphaltierer(baustelle.mass))
-    baustelle.addMaschine(Walze(baustelle.mass))
+    
 
     prev_snapshot = ""
-    while baustelle.phase < 5:
+    while currentTime <= MAX_TIME:
         vprint(f"Time: {currentTime}")
-        for laster in lasterListe:
+        for machine in maschinen:            
+            if machine.mass == 0 and currentTime >= machine.endActivity:
+                for b in baustellen:
+                    type = machine.type
+                    for konkurrenten in maschinen:
+                        if konkurrenten.type == type and konkurrenten.goal == baustellen[b].name:
+                            break
+                    else:
+                        machine.goal = baustellen[b].name
+                        baustellen[machine.goal].maschinen[machine.type] = machine
+                        if machine.location in baustellen.keys():
+                            baustellen[machine.location].maschinen[machine.type] = None
+                        machine.mass = baustellen[machine.goal].mass
+                        machine.location = machine.location + baustellen[b].name
+                        machine.activity = "Drive"
+                        machine.startActivity = currentTime
+                        machine.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung("z", baustellen[b].name)
+                        break
+                else:
+                    machine.activity = "Drive"
+                    machine.startActivity = currentTime
+                    machine.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(machine.location, "z")
+                    machine.location = machine.location + "z"
             
-            if laster.location == "w" + baustelle.name:
+            if machine.location == "z" + machine.goal and currentTime >= machine.endActivity:
+                machine.location = machine.goal
+                machine.activity = "Waiting"
+                machine.startActivity = currentTime
+                machine.endActivity = 0
+                
+# DRIVE FROM A TO B
+
+        for laster in lasterListe:
+            if laster.goal == None and currentTime >= laster.endActivity:
+                for b in baustellen:
+                    #count laster working for the same goal
+                    count = 0
+                    for konkurrenten in lasterListe:
+                        if konkurrenten.goal == baustellen[b].name:
+                            count += 1
+                    if count < baustellen[b].bestLasterAnzahl:
+                        laster.goal = baustellen[b].name
+                        laster.location = laster.location + baustellen[b].name
+                        laster.activity = "Drive"
+                        laster.startActivity = currentTime
+                        laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung("z", baustellen[b].name)
+                        break
+                else:
+                    laster.activity = "Drive"
+                    laster.startActivity = currentTime
+                    laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(laster.location, "z")
+                    laster.location = laster.location + "z"
+                    
+
+            if laster.location == "z" + laster.goal:
+                if currentTime >= laster.endActivity:
+                    laster.activity = "Waiting"
+                    laster.startActivity = currentTime
+                    laster.endActivity = 0
+                    laster.location = laster.goal
+            if laster.location == "w" + laster.goal:
                 if currentTime >= laster.endActivity:
                     if laster.loadType == "Teer":
                         laster.activity = "Waiting"
@@ -248,35 +447,30 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.location = laster.goal
 
 
-            if laster.location == baustelle.name:
+            if laster.location == laster.goal:
                 if currentTime >= laster.endActivity:
-                    # random code
-                    if laster.activity == "Fraese":
-                        if baustelle.maschinen["Fraese"].endActivity > currentTime:
-                            print("ADFNJIADNAISDHD")
-                        baustelle.maschinen["Fraese"].endActivity = 0
-
                     laster.activity = "Waiting"
+                    laster.startActivity = currentTime
                     laster.endActivity = 0
 
                 if laster.activity == "Waiting":
                     # Wenn Laster leer ist und Fraese noch zu bedienen ist -> Faesenarbeit
                     if (
-                        not baustelle.maschinen["Fraese"].fertig
-                        and not baustelle.maschinen["Fraese"].endActivity
-                        and baustelle.maschinen["Fraese"].mass > 0
+                        baustellen[laster.goal].maschinen["Fraese"] != None
+                        and currentTime >= baustellen[laster.goal].maschinen["Fraese"].endActivity
+                        and baustellen[laster.goal].maschinen["Fraese"].mass > 0
                         and laster.load < NUTZLAST
                         and laster.loadType != "Teer"
                         and laster.activity == "Waiting"
                     ):
                         laster.activity = "Fraese"
                         zuLadeneMasse = None
-                        if baustelle.maschinen["Fraese"].mass >= NUTZLAST:
+                        if baustellen[laster.goal].maschinen["Fraese"].mass >= NUTZLAST:
                             zuLadeneMasse = NUTZLAST
                         else:
-                            zuLadeneMasse = baustelle.maschinen["Fraese"].mass
+                            zuLadeneMasse = baustellen[laster.goal].maschinen["Fraese"].mass
 
-                        baustelle.maschinen["Fraese"].mass -= zuLadeneMasse
+                        baustellen[laster.goal].maschinen["Fraese"].mass -= zuLadeneMasse
                         
                         laster.load = zuLadeneMasse
                         laster.loadType = "Schutt"
@@ -284,19 +478,21 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.endActivity = (
                             currentTime + zuLadeneMasse / ABBRUCH_LEISTUNG * 60
                         )
-                        baustelle.maschinen["Fraese"].endActivity = currentTime + zuLadeneMasse / ABBRUCH_LEISTUNG * 60
+                        baustellen[laster.goal].maschinen["Fraese"].startActivity = currentTime
+                        baustellen[laster.goal].maschinen["Fraese"].endActivity = currentTime + zuLadeneMasse / ABBRUCH_LEISTUNG * 60
                     
                     # Wenn Phase 3 und Asphaltierer hat noch Masse und Laster haben noch zu wenig Teer
                     # -> fahre zur Asphaltierer und hole Teer
                     elif (
-                        baustelle.phase >= 3
+                        baustellen[laster.goal].maschinen["Asphaltierer"] != None 
+                        and baustellen[laster.goal].phase >= 3
                         and laster.load == 0
-                        and baustelle.maschinen["Asphaltierer"].mass > 0
+                        and baustellen[laster.goal].maschinen["Asphaltierer"].mass > 0
                         and sum(
                             [
                                 (
                                     l.load
-                                    if l.loadType == "Teer" and l.goal == baustelle.name
+                                    if l.loadType == "Teer" and l.goal == laster.goal
                                     else 0
                                 )
                                 for l in lasterListe
@@ -306,26 +502,26 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                             [
                                 (
                                     NUTZLAST
-                                    if l.goal == baustelle.name
+                                    if l.goal == laster.goal
                                     and l.activity == "Drive"
-                                    and l.location == baustelle.name + "w"
+                                    and l.location == laster.goal + "w"
                                     else 0
                                 )
                                 for l in lasterListe
                             ]
                         )
-                        < baustelle.maschinen["Asphaltierer"].mass
+                        < baustellen[laster.goal].maschinen["Asphaltierer"].mass
                     ):
 
                         laster.activity = "Drive"
-                        laster.location = baustelle.name + "w"
+                        laster.location = laster.goal + "w"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
 
                     # Wenn Laster noch Schutt geladen hat -> fahre zur Asphaltierer
                     elif laster.loadType == "Schutt" and laster.load > 0:
                         laster.activity = "Drive"
-                        laster.location = baustelle.name + "w"
+                        laster.location = laster.goal + "w"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
 
@@ -334,10 +530,10 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     # Wenn Laster noch Teer laden muss und Asphaltierer zu bedienen ist
                     # -> Lade Teer in Asphaltierer
                     elif (
-                        baustelle.phase > 1
-                        and baustelle.maschinen["Asphaltierer"].mass > 0
-                        and not baustelle.maschinen["Asphaltierer"].fertig
-                        and baustelle.maschinen["Asphaltierer"].endActivity
+                        baustellen[laster.goal].maschinen["Asphaltierer"] != None
+                        and baustellen[laster.goal].phase > 1
+                        and baustellen[laster.goal].maschinen["Asphaltierer"].mass > 0
+                        and baustellen[laster.goal].maschinen["Asphaltierer"].endActivity
                         <= currentTime
                         and laster.load > 0
                         and laster.loadType == "Teer"
@@ -346,16 +542,16 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.activity = "Asphaltierer"
                         zuBeladeneMasse = None
 
-                        if baustelle.maschinen["Asphaltierer"].mass >= NUTZLAST:
+                        if baustellen[laster.goal].maschinen["Asphaltierer"].mass >= NUTZLAST:
                             zuBeladeneMasse = NUTZLAST
                         else:
-                            zuBeladeneMasse = baustelle.maschinen["Asphaltierer"].mass
+                            zuBeladeneMasse = baustellen[laster.goal].maschinen["Asphaltierer"].mass
 
-                        baustelle.maschinen["Asphaltierer"].mass -= zuBeladeneMasse
+                        baustellen[laster.goal].maschinen["Asphaltierer"].mass -= zuBeladeneMasse
 
                         laster.load = 0
                         laster.loadType = None
-                        laster.startActivity = currentTime
+                        
 
                         dump_anzahl = zuBeladeneMasse / VOLUMEN_TRICHTER
                         full_dumps = math.floor(dump_anzahl)  # integer
@@ -377,16 +573,18 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                             full_dumps * VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG * 60,
                         )
 
-                        baustelle.maschinen["Asphaltierer"].endActivity = (
+                        baustellen[laster.goal].maschinen["Asphaltierer"].startActivity = currentTime
+                        baustellen[laster.goal].maschinen["Asphaltierer"].endActivity = (
                             currentTime + trichter_dump_time + rest_dump_time
                         )
+                        laster.startActivity = currentTime
                         laster.endActivity = (
                             currentTime + full_dump_time + rest_dump_time
                         )
 
             # Wenn Laster an Werk angekommen ist
             # Setze auf Warten und Location auf Werk
-            if laster.location == baustelle.name + "w":
+            if laster.location == laster.goal + "w":
                 if currentTime >= laster.endActivity:
                     laster.activity = "Waiting"
                     laster.location = "w"
@@ -395,7 +593,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 if currentTime >= laster.endActivity:
                     # Wenn Laster voll Schutt ist, lade ab
                     if laster.loadType == "Schutt":
-                        laster.goal = baustelle.name
                         laster.activity = "Abladen"
                         laster.load = 0
                         laster.loadType = None
@@ -406,21 +603,21 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     # Wenn Laster leer ist und Asphalterierer Masse braucht
                     # -> Lade Teer auf
                     elif (
-                        baustelle.phase >= 3
+                        baustellen[laster.goal].maschinen["Asphaltierer"] != None
+                        and baustellen[laster.goal].phase >= 3
                         and laster.load == 0
-                        and baustelle.maschinen["Asphaltierer"].mass > 0
+                        and baustellen[laster.goal].maschinen["Asphaltierer"].mass > 0
                         and sum(
                             [l.load if l.loadType == "Teer" else 0 for l in lasterListe]
                         )
-                        < baustelle.maschinen["Asphaltierer"].mass
+                        < baustellen[laster.goal].maschinen["Asphaltierer"].mass
                     ):
-                        need_teer = baustelle.maschinen["Asphaltierer"].mass
+                        need_teer = baustellen[laster.goal].maschinen["Asphaltierer"].mass
                         for l in lasterListe:
-                            if l.loadType == "Teer" and l.goal == baustelle.name:
+                            if l.loadType == "Teer" and l.goal == laster.goal:
                                 need_teer -= l.load
 
                         laster.loadType = "Teer"
-                        laster.goal = baustelle.name
                         laster.load = min(need_teer, NUTZLAST)
                         laster.activity = "Laden"
                         laster.startActivity = currentTime
@@ -430,17 +627,18 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     # Wenn Laster beim Werk ist, Fraese noch arbeitet und noch nicht genug Laster zur verfügung dafür stehen
                     # -> Fahre zur Baustelle und nimm Schutt mit
                     elif (
-                            baustelle.phase < 3 
-                            and laster.load == 0 
-                            and baustelle.maschinen["Fraese"].mass > 0 # wos do platzer denkt, wos lim x-> pi von phase 5pi/x isch
-                            and sum (
-                                [
-                                    NUTZLAST if l.goal == baustelle.name and l.load == 0
-                                    and (l.location == baustelle.name or l.location == "w" + baustelle.name) 
-                                    else 0 for l in lasterListe
-                                ]
-                            ) < baustelle.maschinen["Fraese"].mass
-                        ): 
+                        baustellen[laster.goal].maschinen["Fraese"] != None
+                        and baustellen[laster.goal].phase < 3 
+                        and laster.load == 0 
+                        and baustellen[laster.goal].maschinen["Fraese"].mass > 0 # wos do platzer denkt, wos lim x-> pi von phase 5pi/x isch
+                        and sum (
+                            [
+                                NUTZLAST if l.goal == laster.goal and l.load == 0
+                                and (l.location == laster.goal or l.location == "w" + laster.goal) 
+                                else 0 for l in lasterListe
+                            ]
+                        ) < baustellen[laster.goal].maschinen["Fraese"].mass
+                    ): 
                         laster.activity = "Drive"
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
@@ -458,86 +656,88 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.endActivity = 0
                         laster.goal = None
 
-            
-
-        if baustelle.maschinen["Oberflaechen"].mass > 0 and (
-            baustelle.maschinen["Fraese"].mass
-            < baustelle.maschinen["Oberflaechen"].mass
-            - OBERFLAECHEN_LEISTUNG / 60
-            - OBERFLAECHEN_PUFFER
-            or baustelle.maschinen["Fraese"].mass == 0
-        ):
-            baustelle.maschinen["Oberflaechen"].mass -= OBERFLAECHEN_LEISTUNG / 60
-            if baustelle.maschinen["Oberflaechen"].mass < 0:
-                baustelle.maschinen["Oberflaechen"].mass = 0
-
-        if (
-            baustelle.phase >= 4
-            and baustelle.maschinen["Walze"].mass > 0
+        for baustelle in baustellen:
+            if (baustellen[baustelle].maschinen["Fraese"] != None and baustellen[baustelle].maschinen["Oberflaechen"] != None
             and (
-                baustelle.maschinen["Asphaltierer"].mass
-                < baustelle.maschinen["Walze"].mass
-                - WALZEN_LEISTUNG / 60
-                - WALZEN_PUFFER
-                or baustelle.maschinen["Asphaltierer"].mass == 0
-            )
-        ):
-            baustelle.maschinen["Walze"].mass -= WALZEN_LEISTUNG / 60
-            if baustelle.maschinen["Walze"].mass < 0:
-                baustelle.maschinen["Walze"].mass = 0
+                baustellen[baustelle].maschinen["Oberflaechen"].mass > 0 and (
+                baustellen[baustelle].maschinen["Fraese"].mass
+                < baustellen[baustelle].maschinen["Oberflaechen"].mass
+                - OBERFLAECHEN_LEISTUNG / 60
+                - OBERFLAECHEN_PUFFER
+                or baustellen[baustelle].maschinen["Fraese"].mass == 0)
+            )):
+                baustellen[baustelle].maschinen["Oberflaechen"].mass -= OBERFLAECHEN_LEISTUNG / 60
+                if baustellen[baustelle].maschinen["Oberflaechen"].mass < 0:
+                    baustellen[baustelle].maschinen["Oberflaechen"].mass = 0
 
-        if baustelle.phase == 1:
-            if (
-                baustelle.mass - 8 >= baustelle.maschinen["Fraese"].mass
-                and baustelle.phase < 2
-            ):
-                baustelle.phase = 2
-                vprint("Start Phase 2")
-        if baustelle.phase == 2:
-            if currentTime >= phase_3_start:
-                baustelle.phase = 3
-                vprint("Start Phase 3")
-        if baustelle.phase == 3:
-            if (
-                baustelle.mass - 8 >= baustelle.maschinen["Asphaltierer"].mass
-                and baustelle.phase < 4
-            ):
-                baustelle.phase = 4
-                vprint("Start Phase 4")
-        if baustelle.phase == 4:
-            if baustelle.maschinen["Walze"].mass == 0:
-                baustelle.maschinen["Walze"].fertig = True
-                baustelle.phase = 5
-                vprint("Walzen fertig")
-                break
-        vprint("Phase:", baustelle.phase)
+            if (not (baustellen[baustelle].maschinen["Fraese"] == None or baustellen[baustelle].maschinen["Oberflaechen"] == None)
+            and (
+                baustellen[baustelle].phase >= 4
+                and baustellen[baustelle].maschinen["Walze"].mass > 0
+                and (
+                    baustellen[baustelle].maschinen["Asphaltierer"].mass
+                    < baustellen[baustelle].maschinen["Walze"].mass
+                    - WALZEN_LEISTUNG / 60
+                    - WALZEN_PUFFER
+                    or baustellen[baustelle].maschinen["Asphaltierer"].mass == 0
+                )
+            )):
+                baustellen[baustelle].maschinen["Walze"].mass -= WALZEN_LEISTUNG / 60
+                if baustellen[baustelle].maschinen["Walze"].mass < 0:
+                    baustellen[baustelle].maschinen["Walze"].mass = 0
 
-        
-        for maschine in baustelle.maschinen:
-            vprint(baustelle.maschinen[maschine])
-        vprint("Laster:")
-        for laster in lasterListe:
-            vprint(laster)
-        snapshot = get_snapshot(baustelle, lasterListe, currentTime)
-        if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
-            saveDatei["schritte"].append(snapshot)
 
-        if VERBOSE_CHANGES:
-            snapshot = get_snapshot(baustelle, lasterListe, currentTime)
+            if baustellen[baustelle].phase == 1 and (baustellen[baustelle].maschinen["Fraese"] != None and baustellen[baustelle].maschinen["Oberflaechen"] != None):
+                if (
+                    baustellen[baustelle].mass - OBERFLAECHEN_PUFFER >= baustellen[baustelle].maschinen["Fraese"].mass
+                    and baustellen[baustelle].phase < 2
+                ):
+                    baustellen[baustelle].phase = 2
+                    vprint("Start Phase 2")
+            if baustellen[baustelle].phase == 2 and (baustellen[baustelle].maschinen["Oberflaechen"] != None and baustellen[baustelle].maschinen["Asphaltierer"] != None):
+                if currentTime >= phase_3_start:
+                    baustellen[baustelle].phase = 3
+                    vprint("Start Phase 3")
+            if baustellen[baustelle].phase == 3 and (baustellen[baustelle].maschinen["Asphaltierer"] != None and baustellen[baustelle].maschinen["Walze"] != None):
+                if (
+                    baustellen[baustelle].mass - WALZEN_PUFFER >= baustellen[baustelle].maschinen["Asphaltierer"].mass
+                    and baustellen[baustelle].phase < 4
+                ):
+                    baustellen[baustelle].phase = 4
+                    vprint("Start Phase 4")
+            if baustellen[baustelle].phase == 4 and baustellen[baustelle].maschinen["Walze"] != None:
+                if baustellen[baustelle].maschinen["Walze"].mass == 0:
+                    baustellen[baustelle].phase = 5
+                    vprint("Walzen fertig")
+                    break
+            vprint("Phase:", baustellen[baustelle].phase)
+
+            vprint("Maschinen:")
+            for maschine in maschinen:
+                vprint(maschine)
+            vprint("Laster:")
+            for laster in lasterListe:
+                vprint(laster)
+            snapshot = get_snapshot(baustellen, maschinen, lasterListe, currentTime)
             if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
-                printSnapshot(snapshot)
-                print()
-                print("-" * 40)  # separator for clarity
-        prev_snapshot = copy.deepcopy(snapshot)
-        currentTime += timeStep
-        # time.sleep(0.005)
+                saveDatei["schritte"].append(snapshot)
 
-    vprint("Phase:", baustelle.phase)
-    for maschine in baustelle.maschinen:
-        vprint(baustelle.maschinen[maschine])
-    vprint("Laster:")
-    for i, laster in enumerate(lasterListe):
-        vprint(laster)
+            if VERBOSE_CHANGES:
+                snapshot = get_snapshot(baustellen, maschinen, lasterListe, currentTime)
+                if prev_snapshot == ""  or not compare_dicts(snapshot, prev_snapshot):  # only print if something changed
+                    printSnapshot(snapshot)
+                    print()
+                    print("-" * 40)  # separator for clarity
+            prev_snapshot = copy.deepcopy(snapshot)
+
+            vprint("Phase:", baustellen[baustelle].phase)
+            for maschine in baustellen[baustelle].maschinen:
+                vprint(baustellen[baustelle].maschinen[maschine])
+            vprint("Laster:")
+            for i, laster in enumerate(lasterListe):
+                vprint(laster)
+        
+        currentTime += timeStep
     return saveDatei
 
 
