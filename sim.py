@@ -39,7 +39,7 @@ VOLLADEN_WERK_MIN = 15
 
 
 VERBOSE = False
-VERBOSE_CHANGES = False
+VERBOSE_CHANGES = True
 
 
 def calculate(l, mass, fZeit):
@@ -235,7 +235,7 @@ def printSnapshot(snapshot):
         print(laster)
     for machine in snapshot["Maschinen"]:
         print(machine)
-    
+
 
 
 def simWorkTime_3(l, mass, fahrt_zeit_eine_richtung, verbose = False):
@@ -368,13 +368,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     print("Phase 3 start:", phase_3_start)
     saveDatei = {"schritte": []}
 
-    lasterListe = generateLaster(l, "A")
     lasterPositions = [[] for _ in range(len(lasterListe))]
-    baustelle = Baustelle("A", mass)
-    baustelle.addMaschine(Fraese(baustelle.mass))
-    baustelle.addMaschine(Oberflaechen(baustelle.mass))
-    baustelle.addMaschine(Asphaltierer(baustelle.mass))
-    baustelle.addMaschine(Walze(baustelle.mass))
     
 
     prev_snapshot = ""
@@ -523,7 +517,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     ):
 
                         laster.activity = "Drive"
-                        lasterPositions[lasterIndex].append([baustelle.name + "w", currentTime, currentTime + fahrt_zeit_eine_richtung])
+                        lasterPositions[lasterIndex].append([laster.goal + "w", currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = laster.goal + "w"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
@@ -531,7 +525,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     # Wenn Laster noch Schutt geladen hat -> fahre zur Asphaltierer
                     elif laster.loadType == "Schutt" and laster.load > 0:
                         laster.activity = "Drive"
-                        lasterPositions[lasterIndex].append([baustelle.name + "w", currentTime, currentTime + fahrt_zeit_eine_richtung])
+                        lasterPositions[lasterIndex].append([laster.goal + "w", currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = laster.goal + "w"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
@@ -652,7 +646,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         ) < baustellen[laster.goal].maschinen["Fraese"].mass
                     ): 
                         laster.activity = "Drive"
-                        lasterPositions[lasterIndex].append(["w"+baustelle.name, currentTime, currentTime + fahrt_zeit_eine_richtung])
+                        lasterPositions[lasterIndex].append(["w"+laster.goal, currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
@@ -663,7 +657,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     # Wenn Laster Teer geladen hat -> fahre zur Baustelle
                     elif laster.loadType == "Teer" and laster.load > 0:
                         laster.activity = "Drive"
-                        lasterPositions[lasterIndex].append(["w"+baustelle.name, currentTime, currentTime + fahrt_zeit_eine_richtung])
+                        lasterPositions[lasterIndex].append(["w"+laster.goal, currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
@@ -759,11 +753,11 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
 
 
 # print everything in output.txt
-# sys.stdout = open("output.txt", "w")
+sys.stdout = open("output.txt", "w")
 
-# fZeit = 175 / V_LKW * 60
-# mass = 200
-# ergebnis = simulate(3, mass, fZeit)
+fZeit = 175 / V_LKW * 60
+mass = 200
+ergebnis = simulate(3, mass, fZeit)
 
 
 # open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
