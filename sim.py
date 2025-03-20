@@ -738,7 +738,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 vprint(laster)
         
         currentTime += timeStep
-
     return saveDatei
 
 
