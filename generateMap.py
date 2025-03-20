@@ -49,7 +49,7 @@ def calcRoute(pointA, pointB):
     j = json.loads(call.text)["routes"][0]
     return [j["summary"], decode_polyline(j["geometry"])]
 
-def generateMap(location: list, zoom: int, baustellen: list, AufbereitungsWerk: list):
+def generateMap(location: list, zoom: int, baustellen: list, AufbereitungsWerk: list, Zentrale: list):
     indexedBaustellen = {}
     routes = {} #routes['AB'] = [distanz, polyline]
 
@@ -57,9 +57,13 @@ def generateMap(location: list, zoom: int, baustellen: list, AufbereitungsWerk: 
         indexedBaustellen[chr(ord('A') + i)] = baustelle
     for start in indexedBaustellen.keys():
         routes[start + "w"] = calcRoute([indexedBaustellen[start]["lon"], indexedBaustellen[start]["lat"]], AufbereitungsWerk[::-1])
-        umgedreht = copy.deepcopy(routes[start + "w"])
-        umgedreht[1] = umgedreht[1][::-1]
-        routes["w" + start] = umgedreht
+        routes[start + "z"] = calcRoute([indexedBaustellen[start]["lon"], indexedBaustellen[start]["lat"]], Zentrale[::-1])
+        umgedreht_w = copy.deepcopy(routes[start + "w"])
+        umgedreht_w[1] = umgedreht_w[1][::-1]
+        routes["w" + start] = umgedreht_w
+        umgedreht_z = copy.deepcopy(routes[start + "z"])
+        umgedreht_z[1] = umgedreht_z[1][::-1]
+        routes["z" + start] = umgedreht_z
         for ziel in indexedBaustellen.keys():
             if start != ziel:
                 if routes.get(start + ziel) == None and routes.get(ziel + start) == None:
@@ -103,11 +107,25 @@ def generateMap(location: list, zoom: int, baustellen: list, AufbereitungsWerk: 
         "label": "w"
     }
     config["markers"].append(marker_aw)
+    
+    marker_z = {
+        "location": Zentrale,
+        "popup": "Zentrale",
+        "icon_color": "green",
+        "type": "Zentrale",
+        "label": "z"
+    }
+    config["markers"].append(marker_z)
 
     folium.Marker(
         location=AufbereitungsWerk,
         popup="Aufbereitungswerk",
         icon=folium.Icon(color="red"),
+    ).add_to(m)
+    folium.Marker(
+        location=Zentrale,
+        popup="Zentrale",
+        icon=folium.Icon(color="green"),
     ).add_to(m)
     distances = {}
 
