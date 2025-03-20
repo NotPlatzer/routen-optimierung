@@ -39,9 +39,10 @@ def map():
         {"lat": coords[0][0], "lon": coords[0][1], "größe": 100},
     ]
     AufbereitungsWerk = [45.142380, 11.783497]
+    Zentrale = [45.172380, 11.713497]
     zoom = 12
 
-    m = generateMap(AufbereitungsWerk, zoom, baustellen, AufbereitungsWerk)
+    m = generateMap(AufbereitungsWerk, zoom, baustellen, AufbereitungsWerk, Zentrale)
 
     button_script = """
     <style>
@@ -104,6 +105,8 @@ def sim():
         laster, baustellen["A"]["größe"], map_config["distances"]["Aw"]["duration"]
     )
     open("ergebnisSim.json", "w").write(json.dumps(simErgebnis))
+    
+    print(simErgebnis)
     # Set up the base map using map_config settings.
     base_location = map_config.get("map_settings", {}).get("location", [0, 0])
     zoom = map_config.get("map_settings", {}).get("zoom", 13)
@@ -112,6 +115,10 @@ def sim():
         if k[0] == "w":
             m.add_child(
                 folium.PolyLine(map_config["routes"][k]["polyline"], color="green")
+            )
+        if k[0] == "z":
+            m.add_child(
+                folium.PolyLine(map_config["routes"][k]["polyline"], color="red", opacity=0.5)
             )
     for k in map_config["markers"]:
         m.add_child(folium.Marker(k["location"], popup=k["popup"]))
@@ -144,7 +151,7 @@ def sim():
 
     for event in truck1:
         state, start_time, stop_time = event
-        if state in ["Aw", "wA"] and stop_time is not None:
+        if len(state) >= 2 and stop_time is not None:
             # Movement event: try to get the polyline for the route.
             polyline = get_movement_polyline(state)
             if polyline is not None and len(polyline) >= 2:
@@ -218,4 +225,4 @@ def sim():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="172.31.98.182")
+    app.run(debug=True, host="172.31.98.166")

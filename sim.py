@@ -72,6 +72,8 @@ class Laster:
         return f"Location: {self.location}, Load: {self.load}, LoadType: {self.loadType}, Activity: {self.activity}, startActivity: {self.startActivity}, endActivity: {self.endActivity}, goal: {self.goal}"
 
 
+def calculate_Fahrtzeit_eine_Richtung(a, b):
+    return 175 / V_LKW * 60
 class Baustelle:
     def __init__(self, name, mass):
         self.name = name
@@ -86,6 +88,16 @@ class Baustelle:
         self.phase = (
             1  # 1: Fraese, 2: asphaltieren und fraesen, 3 : asphalieren, 4 fertgig
         )
+        phase_1_finish = calculateWorkTime_1_H(self.bestLasterAnzahl, mass, calculate_Fahrtzeit_eine_Richtung(self.name, "w")) * 60 # fertig um 1000
+        phase_2_finish = OBERFLAECHEN_TROCKENDAUER + OBERFLAECHEN_PUFFER + (mass / OBERFLAECHEN_LEISTUNG) * 60 # fertig um 1000 + 20 min + 10 min
+        phase_3_work_time_min = simWorkTime_3(self.bestLasterAnzahl, mass, calculate_Fahrtzeit_eine_Richtung(self.name, "w")) * 60
+        self.phase_3_start = max(0,max(phase_1_finish, phase_2_finish) - phase_3_work_time_min + PHASE_3_START_PUFFER_MIN) # start um 1000 - simWorktime + PUFFER
+        #phase_3_start = phase_1_time / 3#timeOfPhase_3(l, mass, fahrt_zeit_eine_richtung) * 60 #
+        print("Phase 1 finish:", phase_1_finish)
+        print("Phase 2 finish:", phase_2_finish)
+        print("Phase 3 work:", phase_3_work_time_min)
+        
+        print("Phase 3 start:", self.phase_3_start)
 
     def __str__(self):
         return f"Baustelle: {self.name}"
@@ -303,8 +315,7 @@ def timeOfPhase_3_H(l, mass, fahrt_zeit_eine_richtung):
     return (2 *(mass / (mass / NUTZLAST + (NUTZLAST / ABBRUCH_LEISTUNG + fahrt_zeit_eine_richtung * 2 + ABLADEN_WERK_MIN / 60 + VOLLADEN_WERK_MIN / 60 - (l - 1) * (NUTZLAST - VOLUMEN_TRICHTER) / ASPHALTIERUNGS_LEISTUNG - (VOLUMEN_TRICHTER * l) / ASPHALTIERUNGS_LEISTUNG) * math.floor(mass / (NUTZLAST * l)))) ) / 3
 
 
-def calculate_Fahrtzeit_eine_Richtung(a, b):
-    return 175 / V_LKW * 60
+
 
 def getBestLasterAnzahl(name, mass):
     fahrt_zeit_eine_richtung = calculate_Fahrtzeit_eine_Richtung("z", name)
@@ -356,16 +367,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     
     timeStep = 1  # minuten
     currentTime = 0
-    phase_1_finish = calculateWorkTime_1_H(l, mass, fahrt_zeit_eine_richtung) * 60 # fertig um 1000
-    phase_2_finish = OBERFLAECHEN_TROCKENDAUER + OBERFLAECHEN_PUFFER + (mass / OBERFLAECHEN_LEISTUNG) * 60 # fertig um 1000 + 20 min + 10 min
-    phase_3_work_time_min = simWorkTime_3(l, mass, fahrt_zeit_eine_richtung) * 60
-    phase_3_start = max(0,max(phase_1_finish, phase_2_finish) - phase_3_work_time_min + PHASE_3_START_PUFFER_MIN) # start um 1000 - simWorktime + PUFFER
-    #phase_3_start = phase_1_time / 3#timeOfPhase_3(l, mass, fahrt_zeit_eine_richtung) * 60 #
-    print("Phase 1 finish:", phase_1_finish)
-    print("Phase 2 finish:", phase_2_finish)
-    print("Phase 3 work:", phase_3_work_time_min)
     
-    print("Phase 3 start:", phase_3_start)
     saveDatei = {"schritte": []}
 
     lasterPositions = [[] for _ in range(len(lasterListe))]
@@ -380,6 +382,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 machine.activity = "Waiting"
                 machine.startActivity = currentTime
                 machine.endActivity = 0  
+                
             elif machine.mass == 0 and currentTime >= machine.endActivity:
                 for b in baustellen:
                     type = machine.type
@@ -418,6 +421,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     machine.activity = "Waiting"
                     machine.startActivity = currentTime
                     machine.endActivity = 0  
+                    lasterPositions[lasterIndex].append([laster.location, laster.startActivity, None])
             elif laster.goal == None and currentTime >= laster.endActivity:
                 for b in baustellen:
                     #count laster working for the same goal
@@ -431,6 +435,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.activity = "Drive"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung("z", baustellen[b].name)
+                        lasterPositions[lasterIndex].append([laster.location, laster.startActivity, laster.endActivity])
                         break
                 else:
                     if laster.location != "z":
@@ -438,6 +443,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(laster.location, "z")
                         laster.location = laster.location + "z"
+                        lasterPositions[lasterIndex].append([laster.location, laster.startActivity, laster.endActivity])
                     
 
             if laster.location == "z" + laster.goal:
@@ -446,6 +452,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     laster.startActivity = currentTime
                     laster.endActivity = 0
                     laster.location = laster.goal
+                    lasterPositions[lasterIndex].append([laster.location, currentTime, None])
             if laster.location == "w" + laster.goal:
                 if currentTime >= laster.endActivity:
                     if laster.loadType == "Teer":
@@ -464,7 +471,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
             if laster.location == laster.goal:
                 if currentTime >= laster.endActivity:
                     laster.activity = "Waiting"
-                    lasterPositions[lasterIndex].append([laster.location, currentTime, None])    
                     laster.startActivity = currentTime
                     laster.endActivity = 0
 
@@ -658,7 +664,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         ) < baustellen[laster.goal].maschinen["Fraese"].mass
                     ): 
                         laster.activity = "Drive"
-                        lasterPositions[lasterIndex].append(["w"+laster.goal, currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
@@ -718,7 +723,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     baustellen[baustelle].phase = 2
                     vprint("Start Phase 2")
             if baustellen[baustelle].phase == 2 and (baustellen[baustelle].maschinen["Oberflaechen"] != None and baustellen[baustelle].maschinen["Asphaltierer"] != None):
-                if currentTime >= phase_3_start:
+                if currentTime >= baustellen[baustelle].phase_3_start:
                     baustellen[baustelle].phase = 3
                     vprint("Start Phase 3")
             if baustellen[baustelle].phase == 3 and (baustellen[baustelle].maschinen["Asphaltierer"] != None and baustellen[baustelle].maschinen["Walze"] != None):
