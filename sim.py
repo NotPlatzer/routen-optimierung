@@ -33,7 +33,7 @@ VOLLADEN_WERK_MIN = 15
 
 
 VERBOSE = False
-VERBOSE_CHANGES = True
+VERBOSE_CHANGES = False
 
 
 def calculate(l, mass, fZeit):
@@ -223,6 +223,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     saveDatei = {"schritte": []}
 
     lasterListe = generateLaster(l, "A")
+    lasterPositions = [[] for _ in range(len(lasterListe))]
     baustelle = Baustelle("A", mass)
     baustelle.addMaschine(Fraese(baustelle.mass))
     baustelle.addMaschine(Oberflaechen(baustelle.mass))
@@ -232,7 +233,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     prev_snapshot = ""
     while baustelle.phase < 5:
         vprint(f"Time: {currentTime}")
-        for laster in lasterListe:
+        for lasterIndex, laster in enumerate(lasterListe):
             
             if laster.location == "w" + baustelle.name:
                 if currentTime >= laster.endActivity:
@@ -241,12 +242,13 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.startActivity = currentTime
                         laster.endActivity = 0
                         laster.location = laster.goal
+                        lasterPositions[lasterIndex].append([laster.location, currentTime, None])
                     elif laster.load == 0:
                         laster.activity = "Waiting"
                         laster.startActivity = currentTime
                         laster.endActivity = 0
                         laster.location = laster.goal
-
+                        lasterPositions[lasterIndex].append([laster.location, currentTime, None])
 
             if laster.location == baustelle.name:
                 if currentTime >= laster.endActivity:
@@ -257,6 +259,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         baustelle.maschinen["Fraese"].endActivity = 0
 
                     laster.activity = "Waiting"
+                    lasterPositions[lasterIndex].append([laster.location, currentTime, None])    
                     laster.endActivity = 0
 
                 if laster.activity == "Waiting":
@@ -277,7 +280,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                             zuLadeneMasse = baustelle.maschinen["Fraese"].mass
 
                         baustelle.maschinen["Fraese"].mass -= zuLadeneMasse
-                        
+
                         laster.load = zuLadeneMasse
                         laster.loadType = "Schutt"
                         laster.startActivity = currentTime
@@ -285,7 +288,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                             currentTime + zuLadeneMasse / ABBRUCH_LEISTUNG * 60
                         )
                         baustelle.maschinen["Fraese"].endActivity = currentTime + zuLadeneMasse / ABBRUCH_LEISTUNG * 60
-                    
+
                     # Wenn Phase 3 und Asphaltierer hat noch Masse und Laster haben noch zu wenig Teer
                     # -> fahre zur Asphaltierer und hole Teer
                     elif (
@@ -318,6 +321,7 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     ):
 
                         laster.activity = "Drive"
+                        lasterPositions[lasterIndex].append([baustelle.name + "w", currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = baustelle.name + "w"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
@@ -325,11 +329,10 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                     # Wenn Laster noch Schutt geladen hat -> fahre zur Asphaltierer
                     elif laster.loadType == "Schutt" and laster.load > 0:
                         laster.activity = "Drive"
+                        lasterPositions[lasterIndex].append([baustelle.name + "w", currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = baustelle.name + "w"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
-
-                    
 
                     # Wenn Laster noch Teer laden muss und Asphaltierer zu bedienen ist
                     # -> Lade Teer in Asphaltierer
@@ -360,18 +363,18 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         dump_anzahl = zuBeladeneMasse / VOLUMEN_TRICHTER
                         full_dumps = math.floor(dump_anzahl)  # integer
                         rest_dump = dump_anzahl - full_dumps  # 0 - 0.99
-                                                
+
                         rest_dump_time = (
                             rest_dump * VOLUMEN_TRICHTER
                         ) / ASPHALTIERUNGS_LEISTUNG * 60
-                        
+
                         full_dump_time = max(
                             0,
                             (full_dumps - 1)
                             * VOLUMEN_TRICHTER
                             / ASPHALTIERUNGS_LEISTUNG * 60,
                         )
-                                                
+
                         trichter_dump_time = max(
                             0,
                             full_dumps * VOLUMEN_TRICHTER / ASPHALTIERUNGS_LEISTUNG * 60,
@@ -401,8 +404,8 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.loadType = None
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + ABLADEN_WERK_MIN
-                    
-                    
+                        lasterPositions[lasterIndex].append([laster.location, currentTime, laster.endActivity])
+
                     # Wenn Laster leer ist und Asphalterierer Masse braucht
                     # -> Lade Teer auf
                     elif (
@@ -425,8 +428,11 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.activity = "Laden"
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + (VOLLADEN_WERK_MIN * (laster.load / NUTZLAST))
-                    
-                    #wenn laster leer und baustelle brauch kuan teer und is isch nichtes mehr obzutrogen und wenn i eaz mit teer start kimm i zur baustelle vor phase dings un
+                        lasterPositions[lasterIndex].append(
+                            [laster.location, currentTime, laster.endActivity]
+                        )
+
+                    # wenn laster leer und baustelle brauch kuan teer und is isch nichtes mehr obzutrogen und wenn i eaz mit teer start kimm i zur baustelle vor phase dings un
                     # Wenn Laster beim Werk ist, Fraese noch arbeitet und noch nicht genug Laster zur verfügung dafür stehen
                     # -> Fahre zur Baustelle und nimm Schutt mit
                     elif (
@@ -442,13 +448,18 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                             ) < baustelle.maschinen["Fraese"].mass
                         ): 
                         laster.activity = "Drive"
+                        lasterPositions[lasterIndex].append(["w"+baustelle.name, currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
-                    
+                        lasterPositions[lasterIndex].append(
+                            [laster.location, currentTime, laster.endActivity]
+                        )
+
                     # Wenn Laster Teer geladen hat -> fahre zur Baustelle
                     elif laster.loadType == "Teer" and laster.load > 0:
                         laster.activity = "Drive"
+                        lasterPositions[lasterIndex].append(["w"+baustelle.name, currentTime, currentTime + fahrt_zeit_eine_richtung])
                         laster.location = "w" + laster.goal
                         laster.startActivity = currentTime
                         laster.endActivity = currentTime + fahrt_zeit_eine_richtung
@@ -457,8 +468,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.location = "w"
                         laster.endActivity = 0
                         laster.goal = None
-
-            
 
         if baustelle.maschinen["Oberflaechen"].mass > 0 and (
             baustelle.maschinen["Fraese"].mass
@@ -512,7 +521,6 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                 break
         vprint("Phase:", baustelle.phase)
 
-        
         for maschine in baustelle.maschinen:
             vprint(baustelle.maschinen[maschine])
         vprint("Laster:")
@@ -538,15 +546,15 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     vprint("Laster:")
     for i, laster in enumerate(lasterListe):
         vprint(laster)
-    return saveDatei
+    return lasterPositions
 
 
 # print everything in output.txt
-sys.stdout = open("output.txt", "w")
+# sys.stdout = open("output.txt", "w")
 
-fZeit = 175 / V_LKW * 60
-mass = 200
-ergebnis = simulate(3, mass, fZeit)
+# fZeit = 175 / V_LKW * 60
+# mass = 200
+# ergebnis = simulate(3, mass, fZeit)
 
 
 # open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
@@ -558,4 +566,4 @@ ergebnis = simulate(3, mass, fZeit)
 # 25 euro/m2
 
 
-calculate(3, mass, fZeit)
+# calculate(3, mass, fZeit)

@@ -100,6 +100,7 @@ def generateMap(location: list, zoom: int, baustellen: list, AufbereitungsWerk: 
         "popup": "Aufbereitungswerk",
         "icon_color": "red",
         "type": "AufbereitungsWerk",
+        "label": "w"
     }
     config["markers"].append(marker_aw)
 
