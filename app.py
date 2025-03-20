@@ -25,11 +25,11 @@ def map():
             field = match.group(2)
             baustellen[index][field] = value
     baustellen = list(baustellen.values())
-    coords = [
-        [45.103130, 11.644913],
-    ]
+    coords = [[45.103130, 11.644913], [45.123630, 11.587913], [45.133130, 11.674913]]
     baustellen = [
         {"lat": coords[0][0], "lon": coords[0][1], "größe": 100},
+        {"lat": coords[1][0], "lon": coords[1][1], "größe": 100},
+        {"lat": coords[2][0], "lon": coords[2][1], "größe": 100},
     ]
     AufbereitungsWerk = [45.142380, 11.783497]
     Zentrale = [45.172380, 11.713497]
@@ -70,6 +70,7 @@ def map():
 
     return m.get_root().render() + button_script
 
+
 @app.route("/sim")
 def sim():
     laster = 3
@@ -79,15 +80,9 @@ def sim():
         map_config = json.load(f)
 
     baustellen = map_config["baustellen"]
-    if len(baustellen.keys()) > 1:
-        raise ValueError(
-            "More than one baustelle detected. Please ensure there is one baustelle per map."
-        )
 
     # Run simulation (simErgebnis is a list of trucks, each a list of events [state_code, start, end])
-    simErgebnis = simulate(
-        laster, baustellen["A"]["größe"], map_config["distances"]["Aw"]["duration"]
-    )
+    simErgebnis = simulate(laster, baustellen, map_config["distances"])
     with open("ergebnisSim.json", "w") as f:
         f.write(json.dumps(simErgebnis))
 
@@ -116,18 +111,16 @@ def sim():
     stateCoords = {
         marker["label"]: marker["location"] for marker in map_config["markers"]
     }
-    
+
     lines = {}
-    
-    
-    
-    
+
     return m.get_root().render()
+
 
 @app.route("/data")
 def data():
     return -1
-    
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="172.31.98.182")
