@@ -338,11 +338,11 @@ def getBestLasterAnzahl(name, mass):
 
 def simulate(l, mass, fahrt_zeit_eine_richtung):
     baustellen = {
-        "A": Baustelle("A", 200),
-        "B": Baustelle("B", 300),
-        "C": Baustelle("C", 400),
-        "D": Baustelle("D", 500),
-        "E": Baustelle("E", 600),
+        "A": Baustelle("A", mass),
+        #"B": Baustelle("B", 300),
+        #"C": Baustelle("C", 400),
+        #"D": Baustelle("D", 500),
+        #"E": Baustelle("E", 600),
     }
     
     maschinen = [
@@ -374,8 +374,13 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
     prev_snapshot = ""
     while currentTime <= MAX_TIME:
         vprint(f"Time: {currentTime}")
-        for machine in maschinen:            
-            if machine.mass == 0 and currentTime >= machine.endActivity:
+        for machine in maschinen:        
+            if machine.goal != None and machine.location == machine.goal + "z" and currentTime >= machine.endActivity:  
+                machine.location = "z"
+                machine.activity = "Waiting"
+                machine.startActivity = currentTime
+                machine.endActivity = 0  
+            elif machine.mass == 0 and currentTime >= machine.endActivity:
                 for b in baustellen:
                     type = machine.type
                     for konkurrenten in maschinen:
@@ -393,10 +398,11 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         machine.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung("z", baustellen[b].name)
                         break
                 else:
-                    machine.activity = "Drive"
-                    machine.startActivity = currentTime
-                    machine.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(machine.location, "z")
-                    machine.location = machine.location + "z"
+                    if machine.location != "z":
+                        machine.activity = "Drive"
+                        machine.startActivity = currentTime
+                        machine.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(machine.location, "z")
+                        machine.location = machine.location + "z"
             
             if machine.location == "z" + machine.goal and currentTime >= machine.endActivity:
                 machine.location = machine.goal
@@ -407,7 +413,12 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
 # DRIVE FROM A TO B
 
         for lasterIndex, laster in enumerate(lasterListe):
-            if laster.goal == None and currentTime >= laster.endActivity:
+            if laster.goal != None and machine.location == machine.goal + "z" and currentTime >= machine.endActivity:  
+                    machine.location = "z"
+                    machine.activity = "Waiting"
+                    machine.startActivity = currentTime
+                    machine.endActivity = 0  
+            elif laster.goal == None and currentTime >= laster.endActivity:
                 for b in baustellen:
                     #count laster working for the same goal
                     count = 0
@@ -422,10 +433,11 @@ def simulate(l, mass, fahrt_zeit_eine_richtung):
                         laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung("z", baustellen[b].name)
                         break
                 else:
-                    laster.activity = "Drive"
-                    laster.startActivity = currentTime
-                    laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(laster.location, "z")
-                    laster.location = laster.location + "z"
+                    if laster.location != "z":
+                        laster.activity = "Drive"
+                        laster.startActivity = currentTime
+                        laster.endActivity = currentTime + calculate_Fahrtzeit_eine_Richtung(laster.location, "z")
+                        laster.location = laster.location + "z"
                     
 
             if laster.location == "z" + laster.goal:
@@ -758,6 +770,8 @@ sys.stdout = open("output.txt", "w")
 fZeit = 175 / V_LKW * 60
 mass = 200
 ergebnis = simulate(3, mass, fZeit)
+
+print(ergebnis)
 
 
 # open("ergebnisSim.json", "w").write(json.dumps(ergebnis, indent=4))
