@@ -179,7 +179,10 @@ def machine_3(trucks_max):
     
     print(lkw_x)
     print(zeit_y)
-    plt.plot(lkw_x, zeit_y, label="3")
+    plt.plot(lkw_x, zeit_y, label="Zeit Asphaltierer")
+    plt.xlabel("Anzahl LKW")
+    plt.ylabel("Zeit in min")
+    plt.title("Asphaltieren")
 
 def machine_1(trucks_max):
     l = 1
@@ -204,12 +207,15 @@ def machine_1(trucks_max):
     
     print(lkw_x)
     print(zeit_y)
-    plt.plot(lkw_x, zeit_y, label="1")
+    plt.plot(lkw_x, zeit_y, label="Zeit Fräse")
+    plt.xlabel("Anzahl LKW")
+    plt.ylabel("Zeit in min")
+    plt.title("Fräsen")
 
 
 simWorkTime_1(1)
 
 #machine_1(10)
-machine_3(20)
+machine_3(10)
 plt.legend()
 plt.show()
